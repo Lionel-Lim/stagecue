@@ -57,6 +57,19 @@ Browser audio is resampled to mono PCM16 at 24 kHz. A simple RMS detector on the
 
 StageCue switches the program scene and restarts/unmutes or mutes the named media input. It does not configure a projector, venue mixer, streaming destination, or recording. External AV routing remains host-managed. The in-app visual is a scene guide, not an OBS video feed; verify actual output in OBS.
 
+## Debug a cue
+
+Expand **Debug inspector** below the input/output panels, then speak or type a cue. **Follow latest** tracks new input; select an older trace to inspect it without new speech changing your selection.
+
+1. **Input / transcript** shows typed input or microphone partial/final text, the transcription model, and whether the turn is capturing, transcribing, finished, or failed. Only accepted final transcripts go to Decisions.
+2. **Context sent** shows the recent utterances and mapped stage state included in that particular request.
+3. **Decision output** shows the selected action, model confidence, and all five option probabilities. These are the validated API fields, not a generated explanation of the model's reasoning. Rehearsal is explicitly labelled as a deterministic phrase match.
+4. **App action** explains the local rule: ignored, waiting for confirmation, expired, cancelled, dispatching, executed, or failed. For example, a model's `music_on` at 39% is displayed separately from the app's decision to ignore it below 60%.
+
+The top bar reports transcription connection state and the server's RMS level versus its speech gate. A level that stays above the gate can prevent pause detection; use Finish phrase to test that case. Timing separates audio duration, transcription after commit, Decisions and dispatch. Request-body JSON and the validated response/trace are expandable; authentication headers, API keys, OBS passwords and raw audio are not recorded.
+
+The inspector holds at most 20 traces in server memory. **Clear debug** clears these traces without changing the stage, pending confirmation, activity history or conversation context. Stop resets conversation context as before. Collapse the inspector for the demo, since it displays the text you spoke. No diagnostic files are saved automatically.
+
 ## Know which path is running
 
 | Cue engine | Output | What is demonstrated |

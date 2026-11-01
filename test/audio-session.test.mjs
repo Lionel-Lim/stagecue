@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { WebSocket } from 'ws';
 import { attachAudio } from '../src/audio.mjs';
+import { createDebugStore } from '../src/debug.mjs';
 
 class FakeSocket extends EventEmitter {
   constructor(state = WebSocket.OPEN) {
@@ -63,8 +64,10 @@ function session(t, options = {}) {
   const clock = fakeClock();
   const state = { armed: true, provider: 'openai', target: 'rehearsal', obs: { connected: true }, ...options.state };
   const cues = [];
+  const cueMetadata = [];
+  const diagnostics = createDebugStore();
   let connections = 0;
-  const engine = { snapshot: () => structuredClone(state), cue: async text => { cues.push(text); } };
+  const engine = { diagnostics, snapshot: () => structuredClone(state), cue: async (text, metadata) => { cues.push(text); cueMetadata.push(metadata); } };
   const dispose = attachAudio(browser, {
     apiKey: 'test-api-key', engine,
     ...clock,
@@ -78,7 +81,7 @@ function session(t, options = {}) {
   });
   t.after(dispose);
   return {
-    browser, upstream, clock, state, cues, dispose,
+    browser, upstream, clock, state, cues, cueMetadata, diagnostics, dispose,
     connections: () => connections,
     start() { upstream.open(); upstream.event({ type: 'session.updated' }); },
     turn() {
@@ -318,4 +321,46 @@ test('malformed upstream messages are ignored without crashing', t => {
   }
   assert.deepEqual(app.cues, []);
   assert.equal(errors(app.browser).length, 0);
+});
+
+test('speech debug correlates partial, final and decision input and tracks gate settings', t => {
+  const app = session(t);
+  app.start(); app.turn(); app.ack('first');
+  app.upstream.event({type:'conversation.item.input_audio_transcription.delta',item_id:'first',delta:'show the'});
+  let trace = app.diagnostics.snapshot().turns[0];
+  assert.equal(trace.transcript.partial, 'show the');
+  assert.equal(trace.transcript.status, 'partial');
+  assert.equal(trace.timings.audioMs, 420);
+  assert.equal(trace.transcript.commitReason, 'pause');
+  app.complete('first', 'show the demo');
+  trace = app.diagnostics.snapshot().turns[0];
+  assert.equal(trace.transcript.final, 'show the demo');
+  assert.equal(trace.transcript.itemId, 'first');
+  assert.equal(app.cueMetadata[0].traceId, trace.id);
+  assert.ok(Number.isFinite(trace.timings.transcriptionMs));
+  assert.equal(app.diagnostics.snapshot().audio.threshold, 0.018);
+  assert.equal(JSON.stringify(app.diagnostics.snapshot()).includes('test-api-key'), false);
+});
+
+test('old speech results remain inspectable without becoming a new decision', t => {
+  const app = session(t);
+  app.start(); app.turn(); app.ack('first');
+  const firstId = app.diagnostics.snapshot().turns[0].id;
+  app.turn(); app.ack('second');
+  app.complete('first', 'drop the beat');
+  assert.equal(app.diagnostics.get(firstId).transcript.final, 'drop the beat');
+  assert.equal(app.diagnostics.get(firstId).route.status, 'ignored');
+  assert.deepEqual(app.cues, []);
+  app.complete('second', 'stop the music');
+  assert.deepEqual(app.cues, ['stop the music']);
+});
+
+test('transcription timeout and closed capture are visible without raw service errors', t => {
+  const app = session(t);
+  app.start(); app.turn(); app.ack('first');
+  app.clock.advance(6000);
+  const debug = app.diagnostics.snapshot();
+  assert.equal(debug.audio.status, 'error');
+  assert.equal(debug.turns[0].transcript.status, 'timeout');
+  assert.equal(debug.turns[0].route.status, 'error');
 });

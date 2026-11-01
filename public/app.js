@@ -1,3 +1,5 @@
+import { renderDebug, setupDebug } from './debug.js';
+
 const actions = { slides: 'Switch to Slides', demo: 'Switch to Demo', music_on: 'Drop the beat', music_off: 'Stop the music' };
 const ui = Object.fromEntries([...document.querySelectorAll('[id]')].map((element) => [element.id, element]));
 let state = null;
@@ -160,6 +162,7 @@ function render(next) {
     button.setAttribute('aria-pressed', String(active));
   }
   renderHistory(history);
+  renderDebug(state);
   syncBeat();
   updateControls();
 }
@@ -168,6 +171,8 @@ function updateControls() {
   const ready = !!state && online;
   const occupied = mutations > 0 || !!state?.busy;
   const armed = ready && !!state.armed;
+  ui['debug-clear'].disabled = !ready || mutations > 0;
+  ui['debug-browser-status'].textContent = mic?.ready ? 'Browser capture: sending microphone audio.' : micStarting ? 'Browser capture: waiting for permission / connection.' : 'Browser capture: off in this tab.';
   ui['arm-button'].disabled = !ready || occupied;
   ui['cue-submit'].disabled = !armed || occupied;
   ui['cue-input'].disabled = !ready;
@@ -359,6 +364,7 @@ async function emergencyStop() {
   await api('/api/stop');
 }
 
+setupDebug(() => api('/api/debug/clear'));
 ui['arm-button'].addEventListener('click', async () => { unlockAudio(); if (state?.armed) stopMicrophone(); notify(''); await api('/api/arm', { armed: !state?.armed }); });
 for (const button of document.querySelectorAll('[data-mode]')) button.addEventListener('click', () => api('/api/config', { mode: button.dataset.mode }));
 ui['provider-select'].addEventListener('change', (event) => { stopMicrophone(); api('/api/config', { provider: event.target.value }); });

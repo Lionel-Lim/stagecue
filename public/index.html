@@ -68,7 +68,26 @@
         </section>
       </div>
 
-      <section class="activity-panel" aria-labelledby="activity-title"><div class="activity-heading"><div><span class="section-index">03 / ACTIVITY</span><h2 id="activity-title">Every cue, accounted for.</h2></div><span class="small-pill" id="activity-count">0 EVENTS</span></div><div id="history-list" class="history-list" aria-live="polite"><div class="empty-history"><span aria-hidden="true">↳</span><p>The quiet before the show.<br><span>Your cues and stage changes will appear here.</span></p></div></div></section>
+      <details class="debug-panel" id="debug-panel">
+        <summary><span><span class="section-index">03 / DEBUG</span><strong>Debug inspector</strong><span class="debug-summary-note">Transcript → decision → action</span></span><span class="small-pill" id="debug-count">0 TRACES</span></summary>
+        <div class="debug-body">
+          <div class="debug-audio"><strong id="debug-audio-status">Microphone is off.</strong><span id="debug-audio-level"></span><span id="debug-browser-status"></span></div>
+          <div class="debug-toolbar"><label class="setting-block"><span class="field-label">INSPECT A CUE</span><select id="debug-turn-select" aria-label="Inspect a cue"><option>No cues yet</option></select></label><label class="debug-follow"><input id="debug-follow" type="checkbox" checked> Follow latest</label><button id="debug-clear" type="button" class="quiet-button">Clear debug</button></div>
+          <p class="debug-note">Last 20 traces, held in memory. Clear debug clears this inspector only; cue history and conversation context remain. Collapse this panel for your demo.</p>
+          <p id="debug-empty" class="debug-empty">Speak or type a cue to inspect its journey. Speech capture appears here as soon as the speech gate opens.</p>
+          <div id="debug-detail" hidden>
+            <div class="debug-grid">
+              <section class="debug-card"><h3>1. Input / transcript <span id="debug-transcript-status"></span></h3><p class="debug-note" id="debug-input-meta"></p><span class="field-label">PARTIAL TRANSCRIPT</span><pre id="debug-partial"></pre><span class="field-label" id="debug-final-label">FINAL TRANSCRIPT</span><pre id="debug-final"></pre></section>
+              <section class="debug-card"><h3>2. Context sent</h3><p id="debug-stage-context"></p><ol id="debug-context-list"></ol><p class="debug-note">Earlier speech is context. The current cue is the final message in the request.</p></section>
+              <section class="debug-card"><h3>3. Decision output</h3><p id="debug-decision-value" class="debug-decision-value"></p><p id="debug-confidence"></p><table class="debug-probabilities" id="debug-probabilities"><thead><tr><th>Option</th><th>Probability</th></tr></thead><tbody id="debug-probability-rows"></tbody></table><p class="debug-note">Model confidence and probabilities are estimates, not guarantees. Rehearsal has no model output.</p></section>
+              <section class="debug-card"><h3>4. App action <span id="debug-route-status"></span></h3><p id="debug-route-reason"></p><p id="debug-output"></p><dl class="debug-timings" id="debug-timings"></dl><p class="debug-note">Transcription time starts at audio commit. Decision time excludes speech and confirmation.</p></section>
+            </div>
+            <div class="debug-json"><details><summary>Request JSON · body only</summary><pre id="debug-request-json"></pre></details><details><summary>Validated response / trace JSON</summary><pre id="debug-trace-json"></pre></details></div>
+          </div>
+        </div>
+      </details>
+
+      <section class="activity-panel" aria-labelledby="activity-title"><div class="activity-heading"><div><span class="section-index">04 / ACTIVITY</span><h2 id="activity-title">Every cue, accounted for.</h2></div><span class="small-pill" id="activity-count">0 EVENTS</span></div><div id="history-list" class="history-list" aria-live="polite"><div class="empty-history"><span aria-hidden="true">↳</span><p>The quiet before the show.<br><span>Your cues and stage changes will appear here.</span></p></div></div></section>
 
       <footer class="desk-footer"><div class="footer-note"><span class="brand-mark small" aria-hidden="true">↗</span><p>Made for the moment.<span>DevDay Exchange · London · 2026</span></p></div><button type="button" id="stop-button" class="stop-button"><span class="stop-square" aria-hidden="true"></span>Stop & disarm<span class="key-hint">ESC</span></button></footer>
     </main>

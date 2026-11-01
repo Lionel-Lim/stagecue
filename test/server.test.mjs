@@ -73,3 +73,15 @@ test('unconfigured live paths fail without pretending to execute', async t => {
   assert.equal(result.state.armed, false);
   assert.equal((await post('/api/obs/connect')).status, 400);
 });
+
+test('clear-debug API clears traces while preserving the proposal and existing cue history', async t => {
+  const {post} = await fixture(t);
+  await post('/api/arm', {armed:true});
+  const proposed = await post('/api/cue', {text:'show the demo'});
+  assert.equal(proposed.state.debug.turns.length, 1);
+  const cleared = await post('/api/debug/clear');
+  assert.equal(cleared.state.debug.turns.length, 0);
+  assert.equal(cleared.state.pending.id, proposed.state.pending.id);
+  assert.deepEqual(cleared.state.history, proposed.state.history);
+  assert.equal((await post('/api/confirm', {id:proposed.state.pending.id})).state.currentScene, 'Demo');
+});

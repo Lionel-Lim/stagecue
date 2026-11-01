@@ -27,6 +27,14 @@ This record separates tested behavior from integration that requires the present
 
 Use Ask first for room tests. Confidence thresholds remain heuristic; the live evaluation scripts now report both label accuracy and the effect of the proposal threshold, and exit unsuccessfully when either misses an expected result.
 
+## 1 November 2026 — debug inspector
+
+- All 105 automated tests passed, including correlated speech/decision trace IDs, partial/final text, bounded storage, safe answer-field selection, confidence routing, expiry, queued/in-flight cancellation, and clearing diagnostics without cancelling an action. Syntax and whitespace checks passed.
+- The browser exercised rehearsal input → proposal → confirmation → simulated dispatch, then one real Decisions request. The inspector displayed the typed cue, request body, `demo` choice, 99% confidence and all five option probabilities. The unconfirmed live proposal expired and correctly remained “no action sent.”
+- Trace selection stayed fixed when Follow latest was off. Literal HTML-like input rendered as text. Clear debug removed the traces without changing the stage.
+- Speech partial/final rendering, RMS/gate information and the low-confidence explanation were checked with an isolated, explicitly labelled synthetic browser fixture. This did not capture microphone audio and does not establish real-room recognition quality.
+- Request logging includes only the body. Validated response logging strips unknown upstream fields; no configured keys/passwords or raw audio are included. Debug data is kept in memory only.
+
 ## Still required on the demo machine
 
 - Microphone permissions, speech recognition in the room, actual end-of-speech latency, and false-positive testing.

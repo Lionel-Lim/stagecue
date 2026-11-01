@@ -62,6 +62,7 @@ export function createApp({ env = process.env, obs: injectedObs, engine: injecte
           case '/api/cancel': closeAudio(); await engine.cancel(); break;
           case '/api/manual': closeAudio(); await engine.manual(body.action); break;
           case '/api/stop': closeAudio(); await engine.stop(); break;
+          case '/api/debug/clear': engine.clearDebug(); break;
           case '/api/obs/connect': await obs.connect(); break;
           default: return respond(res, 404, { error: 'Unknown API route.' });
         }

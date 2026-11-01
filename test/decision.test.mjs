@@ -36,7 +36,16 @@ test('sends the documented Decisions schema and returns only an allowlisted resu
   assert.equal(result.confidence, 0.97);
   assert.equal(result.source, 'openai');
   assert.ok(Number.isInteger(result.decisionMs) && result.decisionMs >= 0);
-  assert.deepEqual(Object.keys(result).sort(), ['action', 'confidence', 'decisionMs', 'source']);
+  assert.deepEqual(Object.keys(result).sort(), ['action', 'answer', 'confidence', 'decisionMs', 'source']);
+  assert.deepEqual(result.answer, validAnswer());
+});
+
+test('debug output includes only validated answer fields, not arbitrary upstream properties', async () => {
+  const answer = { ...validAnswer(), privateMetadata: 'private-value', headers: { Authorization: 'private-value' } };
+  answer.probabilities[0].extra = 'private-value';
+  const result = await decideCue('show the demo', options(async () => response(answer)));
+  assert.equal(JSON.stringify(result).includes('private-value'), false);
+  assert.equal(result.answer.probabilities.length, 5);
 });
 
 test('context is bounded evidence and cannot introduce arbitrary stage fields or message roles', async () => {

@@ -49,7 +49,7 @@ function readAnswer(body) {
   }
   const answer = body.answers[0];
   if (answer?.name !== QUESTION_NAME) throw new DecisionError('INVALID_RESPONSE');
-  if (answer.type === 'refusal') return { action: 'none', confidence: 0 };
+  if (answer.type === 'refusal') return { action: 'none', confidence: 0, answer: { type: 'refusal', name: QUESTION_NAME } };
   if (answer.type !== 'choice' || !ACTION_SET.has(answer.choice) ||
       !isProbability(answer.confidence) || !Array.isArray(answer.probabilities)) {
     throw new DecisionError('INVALID_RESPONSE');
@@ -63,7 +63,27 @@ function readAnswer(body) {
   }
   // A complete distribution prevents a truncated/mismatched response from becoming a cue.
   if (values.size !== ACTIONS.length) throw new DecisionError('INVALID_RESPONSE');
-  return { action: answer.choice, confidence: answer.confidence };
+  return { action: answer.choice, confidence: answer.confidence, answer: {
+    type: 'choice', name: QUESTION_NAME, choice: answer.choice, confidence: answer.confidence,
+    probabilities: answer.probabilities.map(({ value, probability }) => ({ value, probability })),
+  } };
+}
+
+export function buildDecisionRequest(text, context = {}) {
+  return {
+    model: 'gpt-6-luna',
+    input: [
+      { role: 'user', content: [{ type: 'input_json', data: { stage: {
+        scene: ['slides', 'demo'].includes(context?.stage?.scene) ? context.stage.scene : 'unknown',
+        music_playing: typeof context?.stage?.musicPlaying === 'boolean' ? context.stage.musicPlaying : null,
+      } } }] },
+      ...(Array.isArray(context?.recentUtterances) ? context.recentUtterances : [])
+        .filter(item => typeof item === 'string').slice(-4)
+        .map(item => ({ role: 'user', content: [{ type: 'input_text', text: item.slice(0, 1000) }] })),
+      { role: 'user', content: [{ type: 'input_text', text: text.trim() }] },
+    ],
+    questions: [{ type: 'choice', name: QUESTION_NAME, instructions: INSTRUCTIONS, choices: CHOICES }],
+  };
 }
 
 /** Classifies speech only; callers own confidence policy, confirmation, and OBS execution. */
@@ -84,20 +104,7 @@ export async function decideCue(text, { apiKey, fetchImpl = fetch, signal, conte
         Authorization: `Bearer ${apiKey.trim()}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        model: 'gpt-6-luna',
-        input: [
-          { role: 'user', content: [{ type: 'input_json', data: { stage: {
-              scene: ['slides', 'demo'].includes(context?.stage?.scene) ? context.stage.scene : 'unknown',
-              music_playing: typeof context?.stage?.musicPlaying === 'boolean' ? context.stage.musicPlaying : null,
-          } } }] },
-          ...(Array.isArray(context?.recentUtterances) ? context.recentUtterances : [])
-            .filter(item => typeof item === 'string').slice(-4)
-            .map(item => ({ role: 'user', content: [{ type: 'input_text', text: item.slice(0, 1000) }] })),
-          { role: 'user', content: [{ type: 'input_text', text: text.trim() }] },
-        ],
-        questions: [{ type: 'choice', name: QUESTION_NAME, instructions: INSTRUCTIONS, choices: CHOICES }],
-      }),
+      body: JSON.stringify(buildDecisionRequest(text, context)),
       signal: requestSignal,
     });
     requestSignal.throwIfAborted();
