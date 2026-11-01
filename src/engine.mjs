@@ -6,8 +6,22 @@ export const ACTIONS = ['slides', 'demo', 'music_on', 'music_off'];
 export function createEngine({ obs, apiKey, decide = decideCue, now = Date.now } = {}) {
   const state = {
     armed: false, mode: 'ask', target: 'rehearsal', provider: 'rehearsal',
-    currentScene: 'Slides', musicPlaying: false, pending: null, history: [], busy: false,
+    currentScene: 'Slides', musicPlaying: false, pending: null, history: [], busy: false, speechMode: 'live',
   };
+  let recentUtterances = [];
+  function decisionContext() {
+    recentUtterances = recentUtterances.filter(item => now() - item.at < 45_000).slice(-4);
+    const status = state.target === 'obs' ? obs?.status() : null;
+    const scenes = status?.configuredScenes ?? { slides: 'Slides', demo: 'Demo' };
+    const scene = status
+      ? status.connected && status.currentScene === scenes.slides ? 'slides'
+        : status.connected && status.currentScene === scenes.demo ? 'demo' : 'unknown'
+      : state.currentScene.toLowerCase();
+    const musicPlaying = status
+      ? status.connected && status.musicAvailable && typeof status.musicMuted === 'boolean' ? !status.musicMuted : null
+      : state.musicPlaying;
+    return { recentUtterances: recentUtterances.map(item => item.text), stage: { scene, musicPlaying } };
+  }
   let generation = 0;
   let request;
   let execution = Promise.resolve();
@@ -54,6 +68,7 @@ export function createEngine({ obs, apiKey, decide = decideCue, now = Date.now }
   }
   async function stop() {
     invalidate();
+    recentUtterances = [];
     state.armed = false;
     const version = generation;
     if (state.target === 'obs' && obs.status().connected) await obs.stop();
@@ -64,7 +79,7 @@ export function createEngine({ obs, apiKey, decide = decideCue, now = Date.now }
     return snapshot();
   }
   async function configure(config) {
-    for (const [key, values] of Object.entries({ mode: ['ask', 'auto'], target: ['rehearsal', 'obs'], provider: ['rehearsal', 'openai'] })) {
+    for (const [key, values] of Object.entries({ mode: ['ask', 'auto'], target: ['rehearsal', 'obs'], provider: ['rehearsal', 'openai'], speechMode: ['live', 'phrase'] })) {
       if (key in config && !values.includes(config[key])) throw new Error(`Invalid ${key}.`);
     }
     if (dispatching || (config.target && config.target !== state.target) || (config.provider && config.provider !== state.provider)) {
@@ -74,13 +89,15 @@ export function createEngine({ obs, apiKey, decide = decideCue, now = Date.now }
       if (version !== generation) throw new Error('Settings change cancelled by a newer action.');
     }
     else invalidate();
-    for (const key of ['mode', 'target', 'provider']) if (config[key]) state[key] = config[key];
+    recentUtterances = [];
+    for (const key of ['mode', 'target', 'provider', 'speechMode']) if (config[key]) state[key] = config[key];
     return snapshot();
   }
   function arm(armed) {
     if (typeof armed !== 'boolean') throw new Error('Armed must be true or false.');
     if (!armed) return stop();
     invalidate();
+    recentUtterances = [];
     if (armed && state.provider === 'openai' && !apiKey) throw new Error('Add OPENAI_API_KEY to .env and restart first.');
     if (armed && state.target === 'obs' && !obs.status().connected) throw new Error('Connect OBS before arming.');
     state.armed = armed;
@@ -93,8 +110,11 @@ export function createEngine({ obs, apiKey, decide = decideCue, now = Date.now }
     const version = generation;
     request = new AbortController();
     state.busy = true;
+    const context = decisionContext();
+    recentUtterances.push({ text: text.trim(), at: now() });
+    recentUtterances = recentUtterances.slice(-4);
     try {
-      const decision = state.provider === 'openai' ? await decide(text, { apiKey, signal: request.signal }) : await rehearseCue(text);
+      const decision = state.provider === 'openai' ? await decide(text, { apiKey, signal: request.signal, context }) : await rehearseCue(text);
       if (version !== generation || !state.armed) return snapshot();
       state.busy = false;
       const item = { ...decision, text, id: randomUUID(), expiresAt: now() + 15000 };
@@ -121,12 +141,14 @@ export function createEngine({ obs, apiKey, decide = decideCue, now = Date.now }
     return snapshot();
   }
   async function cancel() {
+    recentUtterances = [];
     if (dispatching) await stop();
     else invalidate();
     log('cancelled', { message: 'Pending cue dismissed.' }); return snapshot();
   }
   async function manual(action) {
     if (!ACTIONS.includes(action)) throw new Error('Unsupported stage action.');
+    recentUtterances = [];
     if (dispatching) await stop();
     invalidate();
     await execute({ action, text: 'Manual control', source: 'manual', confidence: 1, decisionMs: 0 }, generation, true);

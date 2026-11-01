@@ -80,9 +80,14 @@ export function createApp({ env = process.env, obs: injectedObs, engine: injecte
     if (!allowedRequest(req) || !req.headers.origin || req.url !== '/api/audio' || sockets.clients.size >= 1) { socket.destroy(); return; }
     sockets.handleUpgrade(req, socket, head, browser => {
       sockets.emit('connection', browser, req);
+      const fullPhrase = engine.snapshot().speechMode === 'phrase';
+      const configuredSilence = Number(env.VAD_SILENCE_MS || 400);
+      const silenceMs = Number.isFinite(configuredSilence) && configuredSilence >= 100 && configuredSilence <= 2000 ? configuredSilence : 400;
       const dispose = attachAudio(browser, {
-        apiKey: env.OPENAI_API_KEY, engine, model: env.TRANSCRIPTION_MODEL || 'gpt-live-transcribe',
-        threshold: Number(env.VAD_THRESHOLD || 0.018), silenceMs: Number(env.VAD_SILENCE_MS || 400),
+        apiKey: env.OPENAI_API_KEY, engine,
+        model: fullPhrase ? 'gpt-transcribe' : env.TRANSCRIPTION_MODEL || 'gpt-live-transcribe',
+        threshold: Number(env.VAD_THRESHOLD || 0.018),
+        silenceMs: fullPhrase ? Math.max(700, silenceMs) : silenceMs,
       });
       audioSessions.set(browser, dispose);
       browser.once('close', () => audioSessions.delete(browser));

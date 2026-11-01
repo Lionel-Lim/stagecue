@@ -33,9 +33,19 @@ Set `OPENAI_API_KEY` in `.env`, then restart the server. Secrets are configured 
 
 Choose **CUE ENGINE → OpenAI Decisions**, keep **OUTPUT → Rehearsal stage** for the first test, and arm the desk. Try a typed cue first. Then click the microphone icon, allow microphone access, speak one cue, and pause. Clicking the icon again stops capture.
 
-The server sends text to the native [Decisions API](https://developers.openai.com/api/docs/guides/decisions), using `gpt-6-luna` to choose `slides`, `demo`, `music_on`, `music_off`, or `none`. The model never receives an unrestricted OBS command interface. Voice uses [realtime transcription](https://developers.openai.com/api/docs/guides/realtime-transcription) with `gpt-live-transcribe`, followed by the same decision path.
+The server sends text to the native [Decisions API](https://developers.openai.com/api/docs/guides/decisions), using `gpt-6-luna` to choose `slides`, `demo`, `music_on`, `music_off`, or `none`. It interprets meaning and context, rather than matching keywords. Each decision receives the current utterance, up to four earlier utterances from the last 45 seconds, and the current scene/music state. OBS state comes from the connected adapter; unavailable state is marked unknown. The model never receives an unrestricted OBS command interface or sees the slides, camera, or screen.
 
-Browser audio is resampled to mono PCM16 at 24 kHz. A simple RMS detector on the local server commits speech after a pause: defaults are `VAD_THRESHOLD=0.018` and `VAD_SILENCE_MS=400`. Tune these with the actual microphone and room. The displayed **Decision** time measures text classification; it excludes speech capture, silence detection, transcription, and confirmation. No end-to-end latency guarantee is made.
+Try two separate typed cues within 45 seconds: `I have built a working application. Next I will demonstrate it to you.` (no action), followed by `Let us try it now` (a contextual demo cue). Use **Ask first** and review the proposal. Context supplies references, not permission to replay an older command. Stop, re-arming, settings changes, dismissal and manual controls clear conversation context. The activity log remains visible.
+
+Voice uses [realtime transcription](https://developers.openai.com/api/docs/guides/realtime-transcription), followed by the same contextual decision path:
+
+- **Live · faster** uses `gpt-live-transcribe`, with medium transcription delay for additional audio context.
+- **Full phrase · try in noisy rooms** uses `gpt-transcribe` after a complete audio turn and waits at least 700 ms for a pause. This is an accuracy-oriented alternative, not a guarantee of noise immunity, and can add latency.
+- **Finish phrase** explicitly commits the current audio when background noise prevents pause detection. It does not stop listening; click the microphone or Stop to end capture.
+
+Both modes request browser echo cancellation/noise suppression, provide English language and technology-event context, and hint product names (StageCue, Codex, OBS, DevDay). Browser audio processing varies. In a crowded room, test a close microphone or headset; these models do not identify the presenter or separate them reliably from nearby speakers. Changing speech mode closes the existing microphone session; click the mic again to use it.
+
+Browser audio is resampled to mono PCM16 at 24 kHz. A simple RMS detector on the local server commits speech after a pause: Live defaults are `VAD_THRESHOLD=0.018` and `VAD_SILENCE_MS=400`; Full phrase enforces a minimum 700 ms pause. Tune these with the actual microphone and room. The displayed **Decision** time measures text classification; it excludes speech capture, silence detection, transcription, and confirmation. No end-to-end latency guarantee is made.
 
 ## Connect OBS
 
@@ -63,7 +73,7 @@ Rehearsal recognizes a small exact phrase list, including the example chips. It 
 - The desk starts disarmed. Proposals expire after 15 seconds. Stop clears proposals and cancels pending decisions; if OBS disconnects, use its mixer directly to mute audio.
 - Auto uses a heuristic confidence threshold of 0.85; 0.60–0.85 asks for confirmation and lower confidence is ignored. These thresholds are **not calibrated** against a live-event dataset. Use Ask first until tested in the room.
 - The local server binds to `127.0.0.1` and checks the request host/origin. Keep it local; it has no multi-user login system.
-- Live microphone audio and cue text are sent to OpenAI. Rehearsal text stays local. StageCue keeps recent cue history in server memory and does not write recordings or transcripts to disk. Use non-personal sample content in recordings.
+- Live microphone audio, cue text, recent conversation context and mapped stage state are sent to OpenAI. Rehearsal text stays local. StageCue keeps recent cue history in server memory and does not write recordings or transcripts to disk. Use non-personal sample content in recordings.
 
 ## Verify and demo
 
@@ -72,9 +82,9 @@ npm test
 npm run check
 ```
 
-Once the key is configured, `npm run verify:live` sends 15 labelled cues to the real Decisions API and reports accuracy plus median/p95 decision latency. It includes paraphrases, negations, future plans, quoted cues, and ambiguous multi-action requests. This uses API credits and excludes microphone/OBS timing.
+Once the key is configured, `npm run verify:live` sends 15 labelled cues to the real Decisions API and reports accuracy plus median/p95 decision latency. It includes paraphrases, negations, future plans, quoted cues, and ambiguous multi-action requests. `npm run verify:live -- --context` checks eight contextual examples, including pronouns, absent/ambiguous references and stale commands. Each result also shows how the confidence policy would route it; a correct action below 0.60 still gets ignored. These checks use API credits and exclude microphone/OBS timing.
 
-Tests use fake API and OBS clients to cover allowlisted actions, invalid decisions, cancellation, stale confirmations, unavailable scenes, and muting during a pending music restart. They do not establish microphone accuracy, account API access, or real OBS/audio operation. **Live API, microphone, and OBS checks still need to be run on the demo setup.**
+Tests use fake API and OBS clients to cover allowlisted actions, invalid decisions, context expiry/reset, cancellation, stale confirmations, unavailable scenes, and muting during a pending music restart. They do not establish microphone accuracy or real OBS/audio operation. **Room microphone quality and the complete OBS journey still need to be checked on the demo setup.**
 
 [The 80-second demo script and submission checklist](docs/DEMO.md) include those checks. [Credits](CREDITS.md) identify dependencies, original assets, and the concrete Codex contribution. Codex helped build and test StageCue; the runtime uses the OpenAI transcription and Decisions APIs plus OBS WebSocket.
 

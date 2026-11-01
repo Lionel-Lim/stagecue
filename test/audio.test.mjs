@@ -156,3 +156,27 @@ test('silence duration follows PCM length rather than the number of messages', (
   assert.equal(committed.length, 1);
   assert.equal(committed[0].length, 430 * 48);
 });
+
+test('an explicit finish commits noisy audio once without waiting for silence', () => {
+  const { detector, committed } = capture({ silenceMs: 700 });
+  detector.finish();
+  detector.push(pcm(100, 0.2));
+  detector.push(pcm(300, 0.1));
+  assert.equal(committed.length, 0);
+  detector.finish();
+  assert.equal(committed.length, 1);
+  assert.equal(committed[0].length, 400 * 48);
+  detector.finish();
+  assert.equal(committed.length, 1);
+});
+
+test('full phrase pause preserves a sentence with a 500ms hesitation', () => {
+  const { detector, committed } = capture({ silenceMs: 700 });
+  detector.push(pcm(100, 0.2));
+  detector.push(pcm(500));
+  assert.equal(committed.length, 0);
+  detector.push(pcm(100, 0.2));
+  detector.push(pcm(700));
+  assert.equal(committed.length, 1);
+  assert.equal(committed[0].length, 1400 * 48);
+});

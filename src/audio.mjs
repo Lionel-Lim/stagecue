@@ -6,7 +6,13 @@ export function createTurnDetector({ threshold = 0.018, silenceMs = 400, append,
   const rmsThreshold = Number.isFinite(threshold) && threshold > 0 && threshold <= 1 ? threshold : 0.018;
   const tailMs = Number.isFinite(silenceMs) && silenceMs >= 100 && silenceMs <= 2000 ? silenceMs : 400;
   let preRoll = [], active = false, quietMs = 0, durationMs = 0;
+  const finish = () => {
+    if (!active || durationMs < 100) return;
+    commit();
+    active = false; quietMs = 0; durationMs = 0; preRoll = [];
+  };
   return {
+    finish,
     push(buffer) {
       if (!Buffer.isBuffer(buffer) || !buffer.length || buffer.length % 2 || buffer.length > 48000) return;
       const ms = buffer.length / 48;
@@ -24,8 +30,7 @@ export function createTurnDetector({ threshold = 0.018, silenceMs = 400, append,
       } else { append(buffer); durationMs += ms; }
       quietMs = speaking ? 0 : quietMs + ms;
       if (quietMs >= tailMs || durationMs >= 12000) {
-        commit();
-        active = false; quietMs = 0; durationMs = 0;
+        finish();
       }
     },
   };
@@ -118,7 +123,12 @@ export function attachAudio(browser, {
     type: 'session.update',
     session: { type: 'transcription', audio: { input: {
       format: { type: 'audio/pcm', rate: 24000 },
-      transcription: { model, languages: ['en'], prompt: 'A live presentation. Stage cues include drop the beat, stop the music, back to slides, and let us see the demo.' },
+      transcription: {
+        model, languages: ['en'],
+        prompt: 'A presenter at a technology event in London, discussing an application, presentation slides, a live demonstration and backing music. There may be background audience chatter.',
+        keywords: ['StageCue', 'Codex', 'OBS', 'DevDay'],
+        ...(model === 'gpt-live-transcribe' ? { delay: 'medium' } : {}),
+      },
       turn_detection: null,
     } } },
   }));
@@ -171,8 +181,14 @@ export function attachAudio(browser, {
   upstream.on('error', () => fail('Transcription connection failed. Check your key and network.'));
   upstream.on('close', () => { if (!closed) fail('Transcription disconnected. Reconnect the microphone to continue.'); });
   browser.on('message', (raw, binary) => {
-    if (!binary || !ready || closed) return;
+    if (!ready || closed) return;
     if (!canListen()) return close();
+    if (!binary) {
+      // An explicit end-of-phrase control works even when room noise never falls below the RMS gate.
+      if (raw.length > 100) return;
+      try { if (JSON.parse(raw.toString())?.type === 'finish_phrase') detector.finish(); } catch { /* Ignore invalid controls. */ }
+      return;
+    }
     if (!Buffer.isBuffer(raw) || raw.length > 48000 || raw.length % 2) return fail('Invalid microphone audio frame.');
     if (upstream.bufferedAmount > 480000) return fail('Audio connection cannot keep up. Listening stopped.');
     detector.push(raw);

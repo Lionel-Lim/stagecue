@@ -20,7 +20,12 @@ test('sends the documented Decisions schema and returns only an allowlisted resu
     assert.ok(init.signal instanceof AbortSignal);
     const body = JSON.parse(init.body);
     assert.equal(body.model, 'gpt-6-luna');
-    assert.equal(body.input, "So let's see the demo");
+    assert.equal(body.input[0].role, 'user');
+    assert.equal(body.input[0].content[0].type, 'input_json');
+    assert.deepEqual(body.input[0].content[0].data, {
+      stage: { scene: 'unknown', music_playing: null },
+    });
+    assert.deepEqual(body.input.at(-1), { role: 'user', content: [{ type: 'input_text', text: "So let's see the demo" }] });
     assert.equal(body.questions.length, 1);
     assert.equal(body.questions[0].type, 'choice');
     assert.equal(body.questions[0].name, 'stage_action');
@@ -32,6 +37,21 @@ test('sends the documented Decisions schema and returns only an allowlisted resu
   assert.equal(result.source, 'openai');
   assert.ok(Number.isInteger(result.decisionMs) && result.decisionMs >= 0);
   assert.deepEqual(Object.keys(result).sort(), ['action', 'confidence', 'decisionMs', 'source']);
+});
+
+test('context is bounded evidence and cannot introduce arbitrary stage fields or message roles', async () => {
+  await decideCue('start it now', {
+    ...options(async (_url, init) => {
+      const input = JSON.parse(init.body).input;
+      assert.equal(input.at(-1).content[0].text, 'start it now');
+      assert.deepEqual(input.slice(1, -1).map(message => message.content[0].text), ['second', 'third', 'fourth', 'x'.repeat(1000)]);
+      assert.deepEqual(input[0].content[0].data.stage, { scene: 'unknown', music_playing: null });
+      assert.equal(JSON.stringify(input).includes('private-value'), false);
+      assert.ok(input.every(message => message.role === 'user'));
+      return response(validAnswer('music_on'));
+    }),
+    context: { recentUtterances: ['first', {}, 'second', 'third', 'fourth', 'x'.repeat(2000)], stage: { scene: 'arbitrary-command', musicPlaying: 'yes', secret: 'private-value' }, role: 'developer' },
+  });
 });
 
 test('refusals explicitly produce no action', async () => {

@@ -234,3 +234,61 @@ test('failed OBS Stop disarms but never claims music was successfully stopped', 
   assert.equal(snapshot.musicPlaying, true);
   assert.notEqual(snapshot.history[0].type, 'stopped');
 });
+
+test('recent speech supplies chronological context even when it was not a stage cue', async () => {
+  const contexts = [];
+  const { engine, advance } = await harness({ decide: async (_text, { context }) => {
+    contexts.push(context);
+    return result('none');
+  } });
+  await engine.configure({ target: 'rehearsal' });
+  engine.arm(true);
+  await engine.cue('I built an application I want to demonstrate.');
+  await engine.cue('Let us try it now.');
+  assert.deepEqual(contexts[0].recentUtterances, []);
+  assert.deepEqual(contexts[1], {
+    recentUtterances: ['I built an application I want to demonstrate.'],
+    stage: { scene: 'slides', musicPlaying: false },
+  });
+  advance(45_000);
+  await engine.cue('Now?');
+  assert.deepEqual(contexts[2].recentUtterances, []);
+});
+
+test('only the four most recent utterances enter a decision', async () => {
+  const contexts = [];
+  const { engine } = await harness({ decide: async (_text, { context }) => { contexts.push(context); return result('none'); } });
+  for (let i = 0; i < 7; i++) await engine.cue(`Sentence ${i}`);
+  assert.deepEqual(contexts[6].recentUtterances, ['Sentence 2', 'Sentence 3', 'Sentence 4', 'Sentence 5']);
+});
+
+test('Stop, re-arm, settings, dismissal and manual control clear remembered speech', async () => {
+  for (const operation of [
+    async engine => { await engine.stop(); engine.arm(true); },
+    async engine => engine.arm(true),
+    async engine => engine.configure({ mode: 'auto' }),
+    async engine => engine.configure({ speechMode: 'phrase' }),
+    async engine => engine.cancel(),
+    async engine => engine.manual('slides'),
+  ]) {
+    const contexts = [];
+    const { engine } = await harness({ decide: async (_text, { context }) => { contexts.push(context); return result('none'); } });
+    await engine.cue('There is a backing track.');
+    await operation(engine);
+    await engine.cue('Start it.');
+    assert.deepEqual(contexts[1].recentUtterances, []);
+  }
+});
+
+test('context describes actual mapped OBS state, and does not fabricate disconnected state', async () => {
+  const status = { connected: true, configuredScenes: { slides: 'Deck', demo: 'Application' }, currentScene: 'Application', musicAvailable: true, musicMuted: false };
+  const contexts = [];
+  const engine = createEngine({ apiKey: 'test-api-key', obs: { status: () => status, stop: async () => {} }, decide: async (_text, { context }) => { contexts.push(context); return result('none'); } });
+  await engine.configure({ provider: 'openai', target: 'obs' });
+  engine.arm(true);
+  await engine.cue('That is enough of that.');
+  assert.deepEqual(contexts[0].stage, { scene: 'demo', musicPlaying: true });
+  status.connected = false;
+  await engine.cue('What is happening?');
+  assert.deepEqual(contexts[1].stage, { scene: 'unknown', musicPlaying: null });
+});

@@ -114,10 +114,29 @@ test('sends the transcription configuration once opened and waits for session re
   assert.equal(update.session.type, 'transcription');
   assert.deepEqual(update.session.audio.input.format, { type: 'audio/pcm', rate: 24000 });
   assert.equal(update.session.audio.input.transcription.model, 'gpt-live-transcribe');
+  assert.equal(update.session.audio.input.transcription.delay, 'medium');
+  assert.deepEqual(update.session.audio.input.transcription.keywords, ['StageCue', 'Codex', 'OBS', 'DevDay']);
   assert.equal(update.session.audio.input.turn_detection, null);
   app.upstream.event({ type: 'session.updated' });
   assert.equal(app.browser.sent.filter(event => event.type === 'ready').length, 1);
   app.turn();
+  assert.equal(app.upstream.sent.filter(event => event.type === 'input_audio_buffer.commit').length, 1);
+});
+
+test('full phrase model uses committed turns and accepts the finish control while noisy', t => {
+  const app = session(t, { attach: { model: 'gpt-transcribe', silenceMs: 700 } });
+  app.start();
+  const transcription = app.upstream.sent[0].session.audio.input.transcription;
+  assert.equal(transcription.model, 'gpt-transcribe');
+  assert.equal(transcription.delay, undefined);
+  app.browser.emit('message', Buffer.from('{"type":"finish_phrase"}'), false);
+  assert.equal(app.upstream.sent.filter(event => event.type === 'input_audio_buffer.commit').length, 0);
+  app.browser.emit('message', pcm(500, 5_000), true);
+  app.browser.emit('message', Buffer.from('{"type":"finish_phrase"}'), false);
+  app.ack('noisy'); app.complete('noisy', 'let us try it now');
+  assert.deepEqual(app.cues, ['let us try it now']);
+  app.dispose();
+  app.browser.emit('message', Buffer.from('{"type":"finish_phrase"}'), false);
   assert.equal(app.upstream.sent.filter(event => event.type === 'input_audio_buffer.commit').length, 1);
 });
 

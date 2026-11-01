@@ -89,7 +89,7 @@ async function refresh() {
 function render(next) {
   const previous = state;
   state = next;
-  if (previous && (!state.armed || previous.provider !== state.provider || previous.target !== state.target || (state.target === 'obs' && !state.obs?.connected))) stopMicrophone();
+  if (previous && (!state.armed || previous.provider !== state.provider || previous.target !== state.target || previous.speechMode !== state.speechMode || (state.target === 'obs' && !state.obs?.connected))) stopMicrophone();
   ui['arm-card'].classList.toggle('armed', !!state.armed);
   ui['armed-label'].textContent = state.armed ? 'ARMED' : 'STANDBY';
   ui['arm-button-text'].textContent = state.armed ? 'Desk armed' : 'Arm the desk';
@@ -102,10 +102,11 @@ function render(next) {
   }
   ui['provider-select'].value = state.provider;
   ui['target-select'].value = state.target;
+  ui['speech-select'].value = state.speechMode || 'live';
   ui['mode-description'].textContent = state.mode === 'auto' ? 'Clear cues act immediately. Uncertain cues still ask.' : 'You approve each cue before the stage changes.';
   ui['engine-badge'].textContent = state.provider === 'openai' ? 'OPENAI DECISIONS' : 'REHEARSAL';
   ui['engine-explanation'].textContent = state.provider === 'openai'
-    ? 'OpenAI Decisions interprets your cue. Microphone audio is sent to OpenAI for transcription while listening.'
+    ? 'OpenAI Decisions uses your current cue, recent speech (up to 45 seconds), and stage state. Microphone audio is sent to OpenAI while listening. Stop clears conversation context.'
     : 'Rehearsal matches a few cue phrases without AI. Arm the desk and try one.';
   const output = outputState();
   const scene = output.scene;
@@ -173,6 +174,8 @@ function updateControls() {
   for (const button of document.querySelectorAll('[data-mode], [data-cue]')) button.disabled = !ready || occupied || (!!button.dataset.cue && !armed);
   ui['provider-select'].disabled = !ready || occupied;
   ui['target-select'].disabled = !ready || occupied;
+  ui['speech-select'].disabled = !ready || occupied || state?.provider !== 'openai';
+  ui['finish-phrase'].disabled = !mic?.ready;
   for (const button of document.querySelectorAll('[data-action]')) {
     const unavailable = state?.target === 'obs' && (!state.obs?.connected || (Array.isArray(state.obs.availableActions) && !state.obs.availableActions.includes(button.dataset.action)));
     button.disabled = !ready || mutations > 0 || unavailable;
@@ -188,13 +191,14 @@ function updateControls() {
   ui['microphone-surface'].classList.toggle('listening', !!mic?.ready);
   ui['mic-status'].textContent = mic?.ready ? 'LISTENING' : micStarting ? 'CONNECTING' : 'OFF';
   ui['mic-heading'].textContent = mic?.ready ? 'The floor is yours.' : micStarting ? 'Opening your microphone…' : 'Ready when you are.';
-  ui['mic-help'].textContent = mic?.ready ? 'Speak a cue, then pause. Click the mic to stop.'
+  ui['mic-help'].textContent = mic?.ready ? 'Speak, then pause. If the room stays noisy, click Finish phrase. Click the mic to stop.'
     : micStarting ? 'Allow microphone access in your browser.'
       : state?.provider !== 'openai' ? 'Select OpenAI Decisions to use your microphone.'
         : !state?.ready?.apiKey ? 'Add OPENAI_API_KEY to your local .env, then restart.'
           : state.target === 'obs' && !state.obs?.connected ? 'Connect OBS before starting the microphone.'
             : !armed ? 'Arm the desk, then click the microphone to listen.'
-              : 'Click to listen. Audio is sent to OpenAI only while active.';
+              : state.speechMode === 'phrase' ? 'Waits for a fuller phrase; may add delay. Try a headset or close microphone in a noisy room.'
+                : 'Click to listen. Audio is sent to OpenAI only while active.';
 }
 
 function renderHistory(history) {
@@ -359,6 +363,8 @@ ui['arm-button'].addEventListener('click', async () => { unlockAudio(); if (stat
 for (const button of document.querySelectorAll('[data-mode]')) button.addEventListener('click', () => api('/api/config', { mode: button.dataset.mode }));
 ui['provider-select'].addEventListener('change', (event) => { stopMicrophone(); api('/api/config', { provider: event.target.value }); });
 ui['target-select'].addEventListener('change', (event) => { stopMicrophone(); api('/api/config', { target: event.target.value }); });
+ui['speech-select'].addEventListener('change', (event) => { stopMicrophone(); api('/api/config', { speechMode: event.target.value }); });
+ui['finish-phrase'].addEventListener('click', () => { if (mic?.ready && mic.ws.readyState === WebSocket.OPEN) mic.ws.send(JSON.stringify({ type: 'finish_phrase' })); });
 ui['cue-form'].addEventListener('submit', (event) => { event.preventDefault(); submitCue(ui['cue-input'].value); });
 for (const button of document.querySelectorAll('[data-cue]')) button.addEventListener('click', () => submitCue(button.dataset.cue));
 for (const button of document.querySelectorAll('[data-action]')) button.addEventListener('click', () => { unlockAudio(); api('/api/manual', { action: button.dataset.action }); });
