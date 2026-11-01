@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#dee9be">
+  <title>StageCue — Stage display</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="stage-only">
+  <main class="stage-frame" id="stage-frame" data-scene="Slides" aria-label="Stage display">
+    <div class="stage-preview-top"><span>STAGECUE / LIVE SESSION</span><span class="stage-live-label" id="stage-label">REHEARSAL</span></div>
+    <div class="slide-content" id="slide-content"><span class="slide-kicker">A LITTLE LESS “NEXT SLIDE, PLEASE.”</span><h3>Stay in<br>the moment<span>.</span></h3><div class="slide-footer"><span>YOU BRING THE STORY.<br>WE’LL TAKE THE CUE.</span><span class="slide-star" aria-hidden="true">✳</span></div></div>
+    <div class="demo-content" id="demo-content" hidden><div class="demo-browser"><span></span><span></span><span></span><span>your next big thing</span></div><div class="demo-main"><span class="demo-icon" aria-hidden="true">↗</span><span class="slide-kicker">AND JUST LIKE THAT…</span><h3>You’re live.</h3><p>From the story to the demo.<br>Without breaking your flow.</p><div class="demo-bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div></div>
+    <div class="external-scene-content" id="external-scene-content" hidden><span class="slide-kicker">OBS PROGRAM SCENE</span><h3 id="external-scene-name">Not connected</h3><p>Check the live output in OBS Studio.</p></div>
+    <div class="beat-badge" id="beat-badge" hidden><span class="mini-eq" aria-hidden="true"><i></i><i></i><i></i></span>BEAT ON</div>
+  </main>
+  <span class="stage-caption" id="stage-caption">STAGECUE · REHEARSAL DISPLAY</span>
+  <div class="connection-warning" id="connection-warning" role="status" hidden>Desk disconnected · last scene shown</div>
+  <script type="module">
+    const params = new URLSearchParams(location.search);
+    const fixedScene = ['slides', 'demo'].includes(params.get('scene')?.toLowerCase()) ? params.get('scene').toLowerCase() : null;
+    let fetching = false;
+    async function refresh() {
+      if (fetching) return;
+      fetching = true;
+      try {
+        const response = await fetch('/api/state', { cache: 'no-store', signal: AbortSignal.timeout(4000) });
+        if (!response.ok) throw new Error('Disconnected');
+        const result = await response.json();
+        const state = result.state || result;
+        const configured = state.obs?.configuredScenes || { slides: 'Slides', demo: 'Demo' };
+        const scene = state.target === 'obs' ? state.obs?.currentScene : state.currentScene;
+        const sceneType = fixedScene || (state.target === 'obs' ? (scene === configured.demo ? 'demo' : scene === configured.slides ? 'slides' : 'unknown') : scene?.toLowerCase());
+        const demo = sceneType === 'demo';
+        const slides = sceneType === 'slides';
+        document.getElementById('stage-frame').dataset.scene = demo ? 'Demo' : slides ? 'Slides' : 'Unknown';
+        document.getElementById('slide-content').hidden = !slides;
+        document.getElementById('demo-content').hidden = !demo;
+        document.getElementById('external-scene-content').hidden = demo || slides;
+        document.getElementById('external-scene-name').textContent = scene || 'Not connected';
+        const musicPlaying = state.target === 'obs' ? state.obs?.musicAvailable && state.obs.musicMuted === false : state.musicPlaying;
+        document.getElementById('beat-badge').hidden = !musicPlaying;
+        document.getElementById('stage-label').textContent = fixedScene ? (demo ? 'DEMO' : 'SLIDES') : state.target === 'obs' ? 'SCENE GUIDE' : 'REHEARSAL';
+        document.getElementById('stage-caption').textContent = fixedScene ? 'STAGECUE · DEMO ASSET' : state.target === 'obs' ? 'STAGECUE · SCENE GUIDE — CHECK OUTPUT IN OBS' : 'STAGECUE · REHEARSAL DISPLAY';
+        document.getElementById('connection-warning').hidden = true;
+      } catch { document.getElementById('connection-warning').hidden = false; }
+      finally { fetching = false; }
+    }
+    refresh();
+    setInterval(refresh, 500);
+  </script>
+</body>
+</html>

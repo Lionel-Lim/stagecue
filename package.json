@@ -1,0 +1,16 @@
+{
+  "name": "stagecue",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A voice-operated OBS control desk for live presenters",
+  "engines": { "node": ">=22.14" },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env src/server.mjs",
+    "dev": "node --watch --env-file-if-exists=.env src/server.mjs",
+    "test": "node --test",
+    "verify:live": "node --env-file-if-exists=.env scripts/check-live.mjs",
+    "check": "node --check src/server.mjs && node --check public/app.js"
+  },
+  "dependencies": { "obs-websocket-js": "5.0.8", "ws": "^8.18.3" }
+}

@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#151715">
+  <meta name="description" content="StageCue is a local voice-operated control desk for live presenters. Speak a cue. Own the stage.">
+  <title>StageCue — Your voice. Your stage.</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" type="module"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="wordmark" href="/" aria-label="StageCue home"><span class="brand-mark" aria-hidden="true">↗</span>stagecue<span class="wordmark-dot">.</span></a>
+      <div class="topbar-right"><span class="local-tag">LOCAL CONTROL DESK</span><span class="connection-pill" id="server-status"><span class="status-dot"></span>Connecting</span></div>
+    </header>
+
+    <main>
+      <section class="hero" aria-labelledby="page-title">
+        <div><p class="eyebrow">LESS BACKSTAGE. MORE ON STAGE.</p><h1 id="page-title">Your voice.<br><span>Your stage.</span></h1><p class="hero-description">Speak the cue. Set the scene. Stay in the moment.</p></div>
+        <div class="arm-card" id="arm-card">
+          <div class="arm-card-top"><span class="eyebrow">PRESENTER CONTROL</span><span class="tiny-state" id="armed-label">STANDBY</span></div>
+          <button class="arm-button" id="arm-button" type="button" aria-pressed="false" disabled><span class="arm-icon" aria-hidden="true">⏻</span><span id="arm-button-text">Arm the desk</span><span aria-hidden="true">↗</span></button>
+          <p id="arm-description">Your cues stay inactive until you arm the desk.</p>
+        </div>
+      </section>
+
+      <section class="setup-strip" aria-label="Desk settings">
+        <div class="setting-block mode-block"><span class="field-label" id="mode-label">CONTROL MODE</span><div class="segmented" role="group" aria-labelledby="mode-label"><button type="button" class="selected" id="mode-ask" data-mode="ask" aria-pressed="true">Ask first</button><button type="button" id="mode-auto" data-mode="auto" aria-pressed="false">Auto <span aria-hidden="true">↗</span></button></div></div>
+        <label class="setting-block"><span class="field-label">CUE ENGINE</span><select id="provider-select"><option value="rehearsal">Rehearsal · cue matching</option><option value="openai">OpenAI Decisions</option></select></label>
+        <label class="setting-block"><span class="field-label">OUTPUT</span><select id="target-select"><option value="rehearsal">Rehearsal stage</option><option value="obs">OBS Studio</option></select></label>
+        <div class="setting-note"><span class="small-icon" aria-hidden="true">◎</span><p id="mode-description">You approve each cue<br>before the stage changes.</p></div>
+      </section>
+
+      <div class="notice" id="error-notice" role="alert" hidden><span id="error-text"></span><button type="button" id="dismiss-error" aria-label="Dismiss notification">×</button></div>
+
+      <div class="desk-grid">
+        <section class="panel cue-panel" aria-labelledby="cue-title">
+          <div class="panel-heading"><div><span class="section-index">01 / INPUT</span><h2 id="cue-title">Give it a cue.</h2></div><span class="small-pill" id="engine-badge">REHEARSAL</span></div>
+          <div class="microphone-surface" id="microphone-surface">
+            <div class="microphone-top"><span class="field-label">PRESENTER MICROPHONE</span><span class="mic-status" id="mic-status">OFF</span></div>
+            <div class="mic-main"><button class="mic-button" id="mic-button" type="button" aria-pressed="false" aria-label="Start microphone" disabled><svg width="24" height="28" viewBox="0 0 24 28" fill="none" aria-hidden="true"><rect x="8" y="2" width="8" height="15" rx="4" stroke="currentColor" stroke-width="1.8"/><path d="M4 12v2a8 8 0 0 0 16 0v-2M12 22v4M8 26h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button><div><h3 id="mic-heading">Ready when you are.</h3><p id="mic-help">Select OpenAI Decisions to use your microphone.</p></div></div>
+            <div class="waveform" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            <p class="transcript" id="transcript" aria-live="polite">Your spoken cue will appear here.</p>
+          </div>
+          <form id="cue-form" class="cue-form"><label for="cue-input" class="field-label">OR TYPE A CUE</label><div class="cue-input-wrap"><input id="cue-input" name="cue" type="text" maxlength="500" placeholder="So, let’s see the demo…" autocomplete="off" required><button type="submit" id="cue-submit" aria-label="Send cue" disabled>↗</button></div></form>
+          <div class="example-cues" aria-label="Example cues"><button type="button" data-cue="Let's see the demo">“Let’s see the demo” <span>↗</span></button><button type="button" data-cue="Drop the beat">“Drop the beat” <span>↗</span></button><button type="button" data-cue="Back to the slides">“Back to the slides” <span>↗</span></button></div>
+          <p class="engine-explanation" id="engine-explanation">Rehearsal matches a few cue phrases without AI. Arm the desk and try one.</p>
+          <div class="pending-card" id="pending-card" hidden aria-live="polite"><div class="pending-heading"><span class="status-dot"></span><span class="field-label">WAITING FOR YOUR GO</span><span id="pending-timer"></span></div><h3 id="pending-action">Switch to Demo</h3><p id="pending-text"></p><div class="pending-buttons"><button type="button" id="confirm-button" class="primary-button">Confirm cue <span>↗</span></button><button type="button" id="cancel-button" class="quiet-button">Dismiss</button></div></div>
+        </section>
+
+        <section class="panel stage-panel" aria-labelledby="stage-title">
+          <div class="panel-heading"><div><span class="section-index">02 / OUTPUT</span><h2 id="stage-title">The stage is yours.</h2></div><a href="/stage.html" target="_blank" rel="noopener" class="icon-link" aria-label="Open stage in a new tab" title="Open stage display">↗</a></div>
+          <div class="stage-frame" id="stage-frame" data-scene="Slides">
+            <div class="stage-preview-top"><span>STAGECUE / LIVE SESSION</span><span class="stage-live-label" id="stage-preview-label">REHEARSAL</span></div>
+            <div class="slide-content" id="slide-content"><span class="slide-kicker">A LITTLE LESS “NEXT SLIDE, PLEASE.”</span><h3>Stay in<br>the moment<span>.</span></h3><div class="slide-footer"><span>YOU BRING THE STORY.<br>WE’LL TAKE THE CUE.</span><span class="slide-star" aria-hidden="true">✳</span></div></div>
+            <div class="demo-content" id="demo-content" hidden><div class="demo-browser"><span></span><span></span><span></span><span>your next big thing</span></div><div class="demo-main"><span class="demo-icon" aria-hidden="true">↗</span><span class="slide-kicker">AND JUST LIKE THAT…</span><h3>You’re live.</h3><p>From the story to the demo.<br>Without breaking your flow.</p><div class="demo-bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div></div>
+            <div class="external-scene-content" id="external-scene-content" hidden><span class="slide-kicker">OBS PROGRAM SCENE</span><h3 id="external-scene-name">Not connected</h3><p>Check the live output in OBS Studio.</p></div>
+            <div class="beat-badge" id="beat-badge" hidden><span class="mini-eq" aria-hidden="true"><i></i><i></i><i></i></span>BEAT ON</div>
+          </div>
+          <div class="stage-readout"><div><span class="status-dot" id="output-dot"></span><span id="scene-label">Slides</span><span class="readout-divider">/</span><span class="readout-muted" id="output-label">Simulated OBS</span></div><div class="latency"><span class="readout-muted">Decision</span><strong id="latency-value">—</strong></div></div>
+          <div class="obs-status-row" id="obs-status-row" hidden><span id="obs-status-text">OBS disconnected</span><button type="button" id="obs-connect">Connect OBS ↗</button></div>
+          <p class="obs-warning" id="obs-warning" role="status" hidden></p>
+          <div class="manual-section"><span class="field-label">QUICK CONTROLS · ALWAYS MANUAL</span><div class="manual-controls"><button type="button" data-action="slides"><span aria-hidden="true">▤</span>Slides</button><button type="button" data-action="demo"><span aria-hidden="true">⌘</span>Demo</button><button type="button" data-action="music_on"><span aria-hidden="true">♫</span>Beat on</button><button type="button" data-action="music_off"><span aria-hidden="true">Ⅱ</span>Beat off</button></div></div>
+          <p class="preview-caption" id="preview-caption">A local stage simulation. The rehearsal beat plays in this browser.</p>
+        </section>
+      </div>
+
+      <section class="activity-panel" aria-labelledby="activity-title"><div class="activity-heading"><div><span class="section-index">03 / ACTIVITY</span><h2 id="activity-title">Every cue, accounted for.</h2></div><span class="small-pill" id="activity-count">0 EVENTS</span></div><div id="history-list" class="history-list" aria-live="polite"><div class="empty-history"><span aria-hidden="true">↳</span><p>The quiet before the show.<br><span>Your cues and stage changes will appear here.</span></p></div></div></section>
+
+      <footer class="desk-footer"><div class="footer-note"><span class="brand-mark small" aria-hidden="true">↗</span><p>Made for the moment.<span>DevDay Exchange · London · 2026</span></p></div><button type="button" id="stop-button" class="stop-button"><span class="stop-square" aria-hidden="true"></span>Stop & disarm<span class="key-hint">ESC</span></button></footer>
+    </main>
+  </div>
+</body>
+</html>
