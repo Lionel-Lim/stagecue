@@ -50,6 +50,7 @@ Use Ask first for room tests. Confidence thresholds remain heuristic; the live e
 - All 107 automated tests passed, including the new stop requests, partial failures, repeated Stop, cancellation of an in-flight restart, and protection against late unmute acknowledgements. Syntax and whitespace checks passed.
 - A direct check against the presenter's OBS instance moved the configured Beat media source from paused to `OBS_MEDIA_STATE_STOPPED`, with mute enabled, and verified it stayed stopped for two seconds. Monitoring settings were left unchanged. The presenter still needs to confirm the audible result and the full voice → OBS journey after the server restart; the earlier diagnostic did not establish audible success.
 - After restarting the app, its manual `music_off` and `/api/stop` paths both completed against OBS. A separate read confirmed media stopped, mute enabled, and Monitor and Output still selected. The desk was left disarmed with OpenAI/Auto/OBS settings and the OBS connection restored.
+- The presenter then retested manual Beat on → Beat off and confirmed that the audible music stopped. This establishes the manual OBS audio journey; voice-triggered stopping still requires a recognized/accepted cue.
 
 ## Still required on the demo machine
 
