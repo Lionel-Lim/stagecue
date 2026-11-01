@@ -44,6 +44,13 @@ Use Ask first for room tests. Confidence thresholds remain heuristic; the live e
 - Activity now shows confidence and the actual reason a cue was ignored, separating model `none` from low confidence. “Drum my beat” remains an unclear/unsupported transcript and is not silently rewritten to “drop the beat.”
 - All 105 automated tests passed, plus syntax and whitespace checks. A browser replay of the five reported utterances used real Decisions with rehearsal output: Demo executed, both unclear/filler phrases were ignored, music executed at 94%, and Slides executed at 99%. This verifies typed transcripts and simulated output, not a new microphone or OBS test.
 
+## 1 November 2026 — OBS music-stop fix
+
+- The presenter reported that OBS music started successfully but did not stop. The adapter sent only `SetInputMute`; it did not stop media playback. Both `music_off` and Stop now send mixer mute and `OBS_WEBSOCKET_MEDIA_INPUT_ACTION_STOP` to the configured source. Each operation is attempted even if the other fails, and partial failure is reported instead of claiming success.
+- All 107 automated tests passed, including the new stop requests, partial failures, repeated Stop, cancellation of an in-flight restart, and protection against late unmute acknowledgements. Syntax and whitespace checks passed.
+- A direct check against the presenter's OBS instance moved the configured Beat media source from paused to `OBS_MEDIA_STATE_STOPPED`, with mute enabled, and verified it stayed stopped for two seconds. Monitoring settings were left unchanged. The presenter still needs to confirm the audible result and the full voice → OBS journey after the server restart; the earlier diagnostic did not establish audible success.
+- After restarting the app, its manual `music_off` and `/api/stop` paths both completed against OBS. A separate read confirmed media stopped, mute enabled, and Monitor and Output still selected. The desk was left disarmed with OpenAI/Auto/OBS settings and the OBS connection restored.
+
 ## Still required on the demo machine
 
 - Microphone permissions, speech recognition in the room, actual end-of-speech latency, and false-positive testing.

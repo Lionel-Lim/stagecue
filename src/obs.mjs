@@ -171,6 +171,25 @@ export function createObsController({
     if (generation !== expectedGeneration) throw cancelled();
   }
 
+  async function stopMusic(expectedGeneration) {
+    // Muting the mixer does not stop the media transport. Send both requests
+    // immediately: failure of one must not prevent the other being attempted.
+    const results = await Promise.allSettled([
+      call('SetInputMute', { inputName: musicInput, inputMuted: true }, expectedGeneration).then(() => {
+        ensureActive(expectedGeneration);
+        musicMuted = true;
+      }),
+      call('TriggerMediaInputAction', {
+        inputName: musicInput,
+        mediaAction: 'OBS_WEBSOCKET_MEDIA_INPUT_ACTION_STOP',
+      }, expectedGeneration),
+    ]);
+    ensureActive(expectedGeneration);
+    if (results.some(result => result.status === 'rejected')) {
+      throw new ObsControllerError('Could not fully stop music in OBS. Use the OBS audio mixer and media controls.');
+    }
+  }
+
   async function perform(action, expectedGeneration) {
     ensureActive(expectedGeneration);
     if (action === 'slides' || action === 'demo') {
@@ -181,13 +200,14 @@ export function createObsController({
       currentScene = sceneName;
     } else {
       if (!musicAvailable) throw new ObsControllerError('Configure an OBS music input with audio before sending this cue.');
-      // Keep the source muted until restart succeeds. A missing/invalid media
-      // source must never fall through to an unexpected unmute.
-      await call('SetInputMute', { inputName: musicInput, inputMuted: true }, expectedGeneration);
-      ensureActive(expectedGeneration);
-      musicMuted = true;
-      if (action === 'music_on') {
+      if (action === 'music_off') {
+        await stopMusic(expectedGeneration);
+      } else {
+        // Keep the source muted until restart succeeds. A missing/invalid media
+        // source must never fall through to an unexpected unmute.
+        await call('SetInputMute', { inputName: musicInput, inputMuted: true }, expectedGeneration);
         ensureActive(expectedGeneration);
+        musicMuted = true;
         await call('TriggerMediaInputAction', {
           inputName: musicInput,
           mediaAction: 'OBS_WEBSOCKET_MEDIA_INPUT_ACTION_RESTART',
@@ -221,16 +241,15 @@ export function createObsController({
     const expectedGeneration = generation;
     for (const waiter of [...(connection?.waiters ?? [])]) if (waiter.action) waiter.reject(cancelled());
     queue = Promise.resolve();
-    // Do not queue behind media playback: mute immediately, and invalidate
+    // Do not queue behind media playback: mute and stop immediately, and invalidate
     // pending cues so that an in-flight restart cannot unmute afterward.
     if (connected && musicAvailable) {
       try {
-        await call('SetInputMute', { inputName: musicInput, inputMuted: true }, expectedGeneration);
+        await stopMusic(expectedGeneration);
         ensureActive(expectedGeneration);
-        musicMuted = true;
         lastError = null;
       } catch {
-        const error = new ObsControllerError('Could not mute music in OBS. Use the OBS audio mixer.');
+        const error = new ObsControllerError('Could not fully stop music in OBS. Use the OBS audio mixer and media controls.');
         if (generation === expectedGeneration) lastError = error.message;
         throw error;
       }

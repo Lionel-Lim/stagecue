@@ -65,7 +65,7 @@ test('missing scene disables its cue without mutating OBS', async () => {
   assert.equal(client.calls.length, 2);
 });
 
-test('music is restarted while muted, then unmuted; music_off only mutes that source', async () => {
+test('music is restarted while muted, then unmuted; music_off mutes and stops that source', async () => {
   const { client, obs } = setup();
   await obs.connect();
   await obs.execute('music_on');
@@ -75,6 +75,7 @@ test('music is restarted while muted, then unmuted; music_off only mutes that so
     { method: 'TriggerMediaInputAction', data: { inputName: 'Beat', mediaAction: 'OBS_WEBSOCKET_MEDIA_INPUT_ACTION_RESTART' } },
     { method: 'SetInputMute', data: { inputName: 'Beat', inputMuted: false } },
     { method: 'SetInputMute', data: { inputName: 'Beat', inputMuted: true } },
+    { method: 'TriggerMediaInputAction', data: { inputName: 'Beat', mediaAction: 'OBS_WEBSOCKET_MEDIA_INPUT_ACTION_STOP' } },
   ]);
   assert.equal(obs.status().musicMuted, true);
 });
@@ -123,7 +124,7 @@ test('stop cancels an in-flight restart before unmute and drops queued cues', as
   const started = new Promise((resolve) => { startedRestart = resolve; });
   client.call = async (method, data) => {
     const result = await originalCall(method, data);
-    if (method === 'TriggerMediaInputAction') {
+    if (method === 'TriggerMediaInputAction' && data.mediaAction === 'OBS_WEBSOCKET_MEDIA_INPUT_ACTION_RESTART') {
       startedRestart();
       await new Promise((resolve) => { releaseRestart = resolve; });
     }
@@ -139,7 +140,38 @@ test('stop cancels an in-flight restart before unmute and drops queued cues', as
   await Promise.all([musicRejected, sceneRejected]);
   assert.equal(client.calls.some((call) => call.data?.inputMuted === false), false);
   assert.equal(client.calls.some((call) => call.method === 'SetCurrentProgramScene'), false);
+  assert.ok(client.calls.some((call) => call.data?.mediaAction === 'OBS_WEBSOCKET_MEDIA_INPUT_ACTION_STOP'));
   assert.equal(obs.status().musicMuted, true);
+});
+
+test('both stop paths attempt mute and media stop even if one request fails', async () => {
+  for (const useEmergencyStop of [false, true]) {
+    for (const failedMethod of ['SetInputMute', 'TriggerMediaInputAction']) {
+      const { client, obs } = setup();
+      await obs.connect();
+      await obs.execute('music_on');
+      client.calls = [];
+      client.failure = { method: failedMethod, error: new Error('private upstream details') };
+      await assert.rejects(useEmergencyStop ? obs.stop() : obs.execute('music_off'), /Could not fully stop music/);
+      assert.deepEqual(client.calls, [
+        { method: 'SetInputMute', data: { inputName: 'Beat', inputMuted: true } },
+        { method: 'TriggerMediaInputAction', data: { inputName: 'Beat', mediaAction: 'OBS_WEBSOCKET_MEDIA_INPUT_ACTION_STOP' } },
+      ]);
+      assert.equal(obs.status().musicMuted, failedMethod !== 'SetInputMute');
+      assert.doesNotMatch(obs.status().lastError, /private/);
+    }
+  }
+});
+
+test('repeated emergency stops mute and stop only the configured media source', async () => {
+  const { client, obs } = setup();
+  await obs.connect();
+  await obs.stop();
+  await obs.stop();
+  assert.deepEqual(client.calls.slice(2), Array.from({ length: 2 }, () => [
+    { method: 'SetInputMute', data: { inputName: 'Beat', inputMuted: true } },
+    { method: 'TriggerMediaInputAction', data: { inputName: 'Beat', mediaAction: 'OBS_WEBSOCKET_MEDIA_INPUT_ACTION_STOP' } },
+  ]).flat());
 });
 
 test('connect failure never returns raw connection errors or secrets', async () => {

@@ -55,7 +55,7 @@ Browser audio is resampled to mono PCM16 at 24 kHz. A simple RMS detector on the
 4. Add a Media Source named **Beat** with `public/assets/stagecue-beat.wav`, enable looping, and initially mute it. Add that **existing source** to both scenes so it remains active across transitions. `OBS_MUSIC_INPUT` changes its name. Configure OBS monitoring/output with the AV host so the intended speakers actually receive its audio.
 5. Restart StageCue after editing `.env`. Select **OUTPUT → OBS Studio**, click **Connect OBS**, check configuration warnings, and arm in **Ask first**. Connection itself only reads OBS state. Confirm a test cue on your own setup before using Auto.
 
-StageCue switches the program scene and restarts/unmutes or mutes the named media input. It does not configure a projector, venue mixer, streaming destination, or recording. External AV routing remains host-managed. The in-app visual is a scene guide, not an OBS video feed; verify actual output in OBS.
+StageCue switches the program scene and restarts/unmutes or stops/mutes the named media input. Both **Stop the music** and **Stop & disarm** send a media-stop command as well as mixer mute; muting alone does not stop playback. It does not configure a projector, venue mixer, streaming destination, or recording. External AV routing remains host-managed. The in-app visual is a scene guide, not an OBS video feed; verify actual output in OBS.
 
 ## Debug a cue
 
