@@ -59,7 +59,7 @@ export function renderDebug(state) {
   if (currentSignature === detailSignature) return;
   detailSignature = currentSignature;
   text('debug-transcript-status', readable(turn.transcript.status));
-  text('debug-input-meta', [turn.input.kind, turn.input.model, turn.input.provider, turn.input.mode, turn.input.target].filter(Boolean).join(' · '));
+  text('debug-input-meta', [turn.input.kind, turn.input.model, turn.input.provider, turn.input.mode, turn.input.target, Number.isFinite(turn.input.thresholdPercent) ? `threshold ${turn.input.thresholdPercent}%` : null].filter(Boolean).join(' · '));
   text('debug-partial', turn.transcript.partial || (turn.input.kind === 'microphone' ? 'No partial text received.' : 'Not applicable to this input.'));
   text('debug-final-label', turn.input.kind === 'microphone' ? 'FINAL TRANSCRIPT' : 'INPUT TEXT');
   text('debug-final', turn.transcript.final || (turn.transcript.status === 'final' ? '(empty transcript)' : 'Waiting for final transcript…'));

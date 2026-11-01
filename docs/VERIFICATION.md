@@ -52,6 +52,12 @@ Use Ask first for room tests. Confidence thresholds remain heuristic; the live e
 - After restarting the app, its manual `music_off` and `/api/stop` paths both completed against OBS. A separate read confirmed media stopped, mute enabled, and Monitor and Output still selected. The desk was left disarmed with OpenAI/Auto/OBS settings and the OBS connection restored.
 - The presenter then retested manual Beat on → Beat off and confirmed that the audible music stopped. This establishes the manual OBS audio journey; voice-triggered stopping still requires a recognized/accepted cue.
 
+## 1 November 2026 — configurable Auto threshold
+
+- Auto now has only execute/skip outcomes: the default threshold is 65%, editable as a whole percentage from 0–100 in the web UI. Ask first retains its 60% proposal floor and confirmation step. `none` never executes, even with a zero threshold. The setting is shared by browser tabs and survives refreshes until the server restarts.
+- All 112 automated tests passed, including exact threshold boundaries, custom limits, invalid input, cancellation when settings change, stale Ask confirmations after switching to Auto, and HTTP configuration round trips. Syntax and whitespace checks passed. The live-evaluation script now reports routing under the new default Auto policy; no model prompt or API behavior was changed.
+- An isolated browser fixture verified 70% executing at a 65% threshold and being skipped at 90%, exact 65% execution, 64% and `none` being skipped, Ask still proposing, and switching back to Auto clearing the proposal. Unsaved edits survived background polling; saved settings survived refresh. Desktop and 390-pixel layouts were checked without horizontal overflow. This fixture used deterministic model results and simulated output, not live OpenAI/OBS actions.
+
 ## Still required on the demo machine
 
 - Microphone permissions, speech recognition in the room, actual end-of-speech latency, and false-positive testing.

@@ -1,4 +1,5 @@
 import { decideCue } from '../src/decision.mjs';
+import { DEFAULT_AUTO_THRESHOLD } from '../src/engine.mjs';
 if (!process.env.OPENAI_API_KEY) {
   console.error('Set OPENAI_API_KEY in .env first. No live requests were made.');
   process.exit(1);
@@ -53,14 +54,14 @@ for (const [text, expected, context] of examples) {
     const ok = result.action === expected;
     passed += Number(ok);
     times.push(result.decisionMs);
-    const policy = result.action === 'none' || result.confidence < 0.6 ? 'ignore' : result.confidence < 0.85 ? 'confirm' : 'auto eligible';
+    const policy = result.action === 'none' || result.confidence < DEFAULT_AUTO_THRESHOLD / 100 ? 'ignore' : 'auto eligible';
     policyPassed += Number((policy === 'ignore' ? 'none' : result.action) === expected);
     console.log(`${ok ? 'PASS' : 'FAIL'} ${JSON.stringify(text)} → ${result.action} | confidence ${result.confidence.toFixed(2)} | ${result.decisionMs} ms | ${policy}`);
   } catch (error) { console.log(`FAIL ${JSON.stringify(text)} → ${error.message}`); }
 }
 times.sort((a, b) => a - b);
 console.log(`\n${passed}/${examples.length} labelled cues matched. Decisions only; excludes speech and OBS latency.`);
-console.log(`${policyPassed}/${examples.length} matched after the app's 0.60 proposal threshold; Ask first still requires confirmation.`);
+console.log(`${policyPassed}/${examples.length} matched after the default ${DEFAULT_AUTO_THRESHOLD}% Auto threshold; Auto never asks for confirmation.`);
 if (times.length) console.log(`Completed requests: median ${times[Math.floor(times.length / 2)]} ms; p95 ${times[Math.min(times.length - 1, Math.ceil(times.length * 0.95) - 1)]} ms. Failed/timed-out requests are excluded.`);
 console.log('This small evaluation is not a live-room safety or latency guarantee.');
 if (passed !== examples.length || policyPassed !== examples.length) process.exitCode = 1;

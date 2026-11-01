@@ -31,6 +31,11 @@
         <label class="setting-block"><span class="field-label">CUE ENGINE</span><select id="provider-select"><option value="rehearsal">Rehearsal · cue matching</option><option value="openai">OpenAI Decisions</option></select></label>
         <label class="setting-block"><span class="field-label">OUTPUT</span><select id="target-select"><option value="rehearsal">Rehearsal stage</option><option value="obs">OBS Studio</option></select></label>
         <div class="setting-note"><span class="small-icon" aria-hidden="true">◎</span><p id="mode-description">You approve each cue<br>before the stage changes.</p></div>
+        <form id="auto-threshold-form" class="threshold-setting" hidden>
+          <label class="setting-block" for="auto-threshold"><span class="field-label">AUTO CONFIDENCE THRESHOLD</span><span class="threshold-value"><input id="auto-threshold" type="number" min="0" max="100" step="1" value="65" required aria-describedby="auto-threshold-status"><span>%</span></span></label>
+          <button id="threshold-apply" type="submit" class="quiet-button">Apply</button>
+          <p id="auto-threshold-status" role="status">Applied: 65%. At or above: act. Below: skip. No confirmations.</p>
+        </form>
       </section>
 
       <div class="notice" id="error-notice" role="alert" hidden><span id="error-text"></span><button type="button" id="dismiss-error" aria-label="Dismiss notification">×</button></div>

@@ -85,3 +85,17 @@ test('clear-debug API clears traces while preserving the proposal and existing c
   assert.deepEqual(cleared.state.history, proposed.state.history);
   assert.equal((await post('/api/confirm', {id:proposed.state.pending.id})).state.currentScene, 'Demo');
 });
+
+test('threshold configuration is validated and returned to refreshed clients', async t => {
+  const {url, post} = await fixture(t);
+  assert.equal((await (await fetch(url + '/api/state')).json()).autoThreshold, 65);
+  const saved = await post('/api/config', {mode:'auto', autoThreshold:72});
+  assert.equal(saved.status, 200);
+  assert.equal(saved.state.autoThreshold, 72);
+  assert.equal((await (await fetch(url + '/api/state')).json()).autoThreshold, 72);
+  for (const autoThreshold of [-1, 101, '65', null, 65.5]) {
+    const rejected = await post('/api/config', {autoThreshold});
+    assert.equal(rejected.status, 400);
+    assert.equal(rejected.state.autoThreshold, 72);
+  }
+});

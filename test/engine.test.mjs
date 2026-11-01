@@ -148,13 +148,68 @@ test('manual control invalidates an already proposed confirmation', async () => 
   assert.deepEqual(calls, [['execute', 'music_off']]);
 });
 
-test('Auto routes a low confidence cue to preview instead of executing', async () => {
-  const { engine, calls } = await harness({ decide: async () => result('demo', 0.7) });
+test('Auto never proposes: default 65% executes at the boundary and skips below it', async () => {
+  for (const confidence of [0, 0.59, 0.60, 0.64, 0.6499, 0.65, 0.7, 0.84, 0.85, 1]) {
+    const { engine, calls } = await harness({ decide: async () => result('demo', confidence) });
+    await engine.configure({ mode: 'auto' });
+    const snapshot = await engine.cue('show that demo');
+    assert.equal(snapshot.autoThreshold, 65);
+    assert.equal(snapshot.pending, null);
+    assert.deepEqual(calls, confidence >= 0.65 ? [['execute', 'demo']] : []);
+    assert.equal(snapshot.history[0].type, confidence >= 0.65 ? 'executed' : 'ignored');
+    assert.equal(snapshot.debug.turns[0].input.thresholdPercent, 65);
+  }
+});
+
+test('Auto uses the configured threshold, including 0 and 100, but never acts on none', async () => {
+  for (const [autoThreshold, action, confidence, shouldExecute] of [
+    [80, 'demo', 0.79, false], [80, 'demo', 0.8, true],
+    [0, 'demo', 0, true], [0, 'none', 1, false],
+    [100, 'demo', 0.99, false], [100, 'demo', 1, true],
+  ]) {
+    const { engine, calls } = await harness({ decide: async () => result(action, confidence) });
+    await engine.configure({ mode: 'auto', autoThreshold });
+    const snapshot = await engine.cue('sample cue');
+    assert.equal(snapshot.pending, null);
+    assert.deepEqual(calls, shouldExecute ? [['execute', 'demo']] : []);
+    if (action !== 'none') assert.ok(snapshot.debug.turns[0].route.reason.includes(`${autoThreshold}%`));
+  }
+});
+
+test('invalid thresholds do not change settings or cancel an existing Ask proposal', async () => {
+  const { engine } = await harness();
+  const proposal = await engine.cue('show the demo');
+  for (const autoThreshold of [-1, 101, 65.5, '65', null, NaN, Infinity]) {
+    await assert.rejects(engine.configure({ autoThreshold }), /whole percentage/);
+    assert.equal(engine.snapshot().autoThreshold, 65);
+    assert.equal(engine.snapshot().pending.id, proposal.pending.id);
+  }
+});
+
+test('changing threshold cancels an old decision and switching to Auto clears Ask confirmations', async () => {
+  const pending = deferred();
+  const { engine, calls } = await harness({ decide: () => pending.promise });
   await engine.configure({ mode: 'auto' });
-  const snapshot = await engine.cue('show that demo');
-  assert.equal(snapshot.pending.action, 'demo');
+  const work = engine.cue('show the demo');
+  await engine.configure({ autoThreshold: 90 });
+  pending.resolve(result('demo', 0.99));
+  await work;
   assert.deepEqual(calls, []);
-  await engine.confirm(snapshot.pending.id);
+  assert.equal(engine.snapshot().pending, null);
+  await engine.configure({ mode: 'ask' });
+  const proposed = await engine.cue('show the demo');
+  await engine.configure({ mode: 'auto' });
+  await assert.rejects(engine.confirm(proposed.pending.id), /expired or was cancelled/);
+  assert.deepEqual(calls, []);
+});
+
+test('Ask still requires confirmation at 60%, independently of the Auto threshold', async () => {
+  const { engine, calls } = await harness({ decide: async () => result('demo', 0.60) });
+  await engine.configure({ autoThreshold: 100 });
+  const proposed = await engine.cue('show that demo');
+  assert.equal(proposed.pending.action, 'demo');
+  assert.deepEqual(calls, []);
+  await engine.confirm(proposed.pending.id);
   assert.deepEqual(calls, [['execute', 'demo']]);
 });
 

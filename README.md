@@ -64,7 +64,7 @@ Expand **Debug inspector** below the input/output panels, then speak or type a c
 1. **Input / transcript** shows typed input or microphone partial/final text, the transcription model, and whether the turn is capturing, transcribing, finished, or failed. Only accepted final transcripts go to Decisions.
 2. **Context sent** shows the recent utterances and mapped stage state included in that particular request.
 3. **Decision output** shows the selected action, model confidence, and all five option probabilities. These are the validated API fields, not a generated explanation of the model's reasoning. Rehearsal is explicitly labelled as a deterministic phrase match.
-4. **App action** explains the local rule: ignored, waiting for confirmation, expired, cancelled, dispatching, executed, or failed. For example, a model's `music_on` at 39% is displayed separately from the app's decision to ignore it below 60%.
+4. **App action** explains the local rule: ignored, waiting for confirmation, expired, cancelled, dispatching, executed, or failed. Each trace records the threshold used. For example, a model's `music_on` at 39% is displayed separately from Auto skipping it below the selected threshold.
 
 The top bar reports transcription connection state and the server's RMS level versus its speech gate. A level that stays above the gate can prevent pause detection; use Finish phrase to test that case. Timing separates audio duration, transcription after commit, Decisions and dispatch. Request-body JSON and the validated response/trace are expandable; authentication headers, API keys, OBS passwords and raw audio are not recorded.
 
@@ -84,7 +84,7 @@ Rehearsal recognizes a small exact phrase list, including the example chips. It 
 ## Control and data boundaries
 
 - The desk starts disarmed. Proposals expire after 15 seconds. Stop clears proposals and cancels pending decisions; if OBS disconnects, use its mixer directly to mute audio.
-- Auto uses a heuristic confidence threshold of 0.85; 0.60–0.85 asks for confirmation and lower confidence is ignored. These thresholds are **not calibrated** against a live-event dataset. Use Ask first until tested in the room.
+- Auto never asks for confirmation: valid actions at or above the selected confidence threshold execute; lower confidence and `none` are skipped. The default is **65%**. Select Auto, edit **Auto confidence threshold** (0–100%), and click **Apply**. The setting survives page refreshes until the server restarts. Applying settings clears pending work and stops microphone capture; restart the microphone when ready. Ask first still proposes cues at 60% or above for confirmation. Confidence estimates are **not calibrated** against a live-event dataset.
 - The local server binds to `127.0.0.1` and checks the request host/origin. Keep it local; it has no multi-user login system.
 - Live microphone audio, cue text, recent conversation context and mapped stage state are sent to OpenAI. Rehearsal text stays local. StageCue keeps recent cue history in server memory and does not write recordings or transcripts to disk. Use non-personal sample content in recordings.
 
@@ -95,7 +95,7 @@ npm test
 npm run check
 ```
 
-Once the key is configured, `npm run verify:live` sends 15 labelled cues to the real Decisions API and reports accuracy plus median/p95 decision latency. It includes paraphrases, negations, future plans, quoted cues, and ambiguous multi-action requests. `npm run verify:live -- --context` checks eight contextual examples, including pronouns, absent/ambiguous references and stale commands. Each result also shows how the confidence policy would route it; a correct action below 0.60 still gets ignored. These checks use API credits and exclude microphone/OBS timing.
+Once the key is configured, `npm run verify:live` sends 15 labelled cues to the real Decisions API and reports accuracy plus median/p95 decision latency. It includes paraphrases, negations, future plans, quoted cues, and ambiguous multi-action requests. `npm run verify:live -- --context` checks eight contextual examples, including pronouns, absent/ambiguous references and stale commands. Each result shows how the default 65% Auto policy would route it; a correctly classified action below that threshold still gets skipped. These checks use API credits and exclude microphone/OBS timing.
 
 `npm run verify:live -- --reported` replays 12 examples covering reported room-test failures, their original context, additional paraphrases, and negative cases. The activity log shows model confidence and distinguishes a `none` selection from a cue rejected below the proposal threshold. Ambiguous transcription such as “Drum my beat” is not silently rewritten into a command.
 

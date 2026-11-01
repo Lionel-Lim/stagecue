@@ -3,11 +3,12 @@ import { decideCue, rehearseCue, buildDecisionRequest } from './decision.mjs';
 import { createDebugStore } from './debug.mjs';
 
 export const ACTIONS = ['slides', 'demo', 'music_on', 'music_off'];
+export const DEFAULT_AUTO_THRESHOLD = 65;
 
 export function createEngine({ obs, apiKey, decide = decideCue, now = Date.now } = {}) {
   const diagnostics = createDebugStore({ now });
   const state = {
-    armed: false, mode: 'ask', target: 'rehearsal', provider: 'rehearsal',
+    armed: false, mode: 'ask', target: 'rehearsal', provider: 'rehearsal', autoThreshold: DEFAULT_AUTO_THRESHOLD,
     currentScene: 'Slides', musicPlaying: false, pending: null, history: [], busy: false, speechMode: 'live',
   };
   let recentUtterances = [];
@@ -95,7 +96,7 @@ export function createEngine({ obs, apiKey, decide = decideCue, now = Date.now }
       log('executed', { ...cue, target: state.target, dispatchMs: Math.round(performance.now() - start), message: state.target === 'obs' ? 'OBS acknowledged the cue.' : 'Rehearsal output updated.' });
       const authorization = manual ? 'Explicit manual control; no model used.'
         : cue.confirmed ? 'Presenter confirmed the proposed cue.'
-          : `Auto accepted confidence ${(cue.confidence * 100).toFixed(1)}% at or above the 85% threshold.`;
+          : `Auto accepted confidence ${(cue.confidence * 100).toFixed(1)}% at or above the ${cue.thresholdPercent}% threshold. No confirmation required.`;
       diagnostics.update(cue.traceId, {
         route: { status: 'executed', reason: `${authorization} ${state.target === 'obs' ? 'OBS acknowledged the cue.' : 'Rehearsal output updated.'}` },
         output: { status: state.target === 'obs' ? 'acknowledged' : 'simulated', scene: state.target === 'obs' ? obs.status().currentScene : state.currentScene, musicPlaying: state.musicPlaying },
@@ -116,6 +117,9 @@ export function createEngine({ obs, apiKey, decide = decideCue, now = Date.now }
     return snapshot();
   }
   async function configure(config) {
+    if ('autoThreshold' in config && (!Number.isInteger(config.autoThreshold) || config.autoThreshold < 0 || config.autoThreshold > 100)) {
+      throw new Error('Auto threshold must be a whole percentage from 0 to 100.');
+    }
     for (const [key, values] of Object.entries({ mode: ['ask', 'auto'], target: ['rehearsal', 'obs'], provider: ['rehearsal', 'openai'], speechMode: ['live', 'phrase'] })) {
       if (key in config && !values.includes(config[key])) throw new Error(`Invalid ${key}.`);
     }
@@ -128,6 +132,7 @@ export function createEngine({ obs, apiKey, decide = decideCue, now = Date.now }
     else invalidate();
     recentUtterances = [];
     for (const key of ['mode', 'target', 'provider', 'speechMode']) if (config[key]) state[key] = config[key];
+    if ('autoThreshold' in config) state.autoThreshold = config.autoThreshold;
     return snapshot();
   }
   function arm(armed) {
@@ -157,7 +162,7 @@ export function createEngine({ obs, apiKey, decide = decideCue, now = Date.now }
       context: state.provider === 'openai' ? context : null,
       request: state.provider === 'openai' ? buildDecisionRequest(text, context) : null,
       route: { status: 'processing', reason: state.provider === 'openai' ? 'Waiting for OpenAI Decisions.' : 'Checking the offline phrase list.' },
-      input: { provider: state.provider, mode: state.mode, target: state.target },
+      input: { provider: state.provider, mode: state.mode, target: state.target, thresholdPercent: state.mode === 'auto' ? state.autoThreshold : 60 },
     });
     const decisionStarted = performance.now();
     recentUtterances.push({ text: text.trim(), at: now() });
@@ -171,15 +176,17 @@ export function createEngine({ obs, apiKey, decide = decideCue, now = Date.now }
         decision: { action: decision.action, confidence: decision.confidence, source: decision.source, answer: decision.answer ?? null },
         timings: { decisionMs: decision.decisionMs },
       });
-      const item = { ...decision, text, traceId, id: randomUUID(), expiresAt: now() + 15000 };
-      if (!ACTIONS.includes(item.action) || !Number.isFinite(item.confidence) || item.confidence < 0.6) {
+      const thresholdPercent = state.mode === 'auto' ? state.autoThreshold : 60;
+      const item = { ...decision, text, traceId, thresholdPercent, id: randomUUID(), expiresAt: now() + 15000 };
+      const validConfidence = Number.isFinite(item.confidence) && item.confidence >= 0 && item.confidence <= 1;
+      if (!ACTIONS.includes(item.action) || !validConfidence || item.confidence < thresholdPercent / 100) {
         const reason = item.action === 'none' ? (item.source === 'rehearsal' ? 'Offline phrase list found no matching cue.' : 'Model selected none: no stage action.')
-          : !ACTIONS.includes(item.action) || !Number.isFinite(item.confidence) ? 'Invalid action or confidence; nothing sent.'
-            : `Confidence ${(item.confidence * 100).toFixed(1)}% is below the 60% proposal threshold.`;
+          : !ACTIONS.includes(item.action) || !validConfidence ? 'Invalid action or confidence; nothing sent.'
+            : `Confidence ${(item.confidence * 100).toFixed(1)}% is below the ${thresholdPercent}% ${state.mode === 'auto' ? 'Auto threshold. Cue skipped without confirmation' : 'proposal threshold'}.`;
         diagnostics.update(traceId, { route: { status: 'ignored', reason } });
         log('ignored', { ...item, message: `${reason} Nothing changed.` });
-      } else if (state.mode === 'ask' || item.confidence < 0.85) {
-        diagnostics.update(traceId, { route: { status: 'awaiting_confirmation', reason: state.mode === 'ask' ? 'Ask first requires your confirmation (15 seconds).' : `Confidence ${(item.confidence * 100).toFixed(1)}% is below the 85% Auto threshold. Confirmation required (15 seconds).` } });
+      } else if (state.mode === 'ask') {
+        diagnostics.update(traceId, { route: { status: 'awaiting_confirmation', reason: 'Ask first requires your confirmation (15 seconds).' } });
         state.pending = item;
         log('proposed', { ...item, message: 'Waiting for confirmation (15 seconds).' });
       } else await execute(item, version);

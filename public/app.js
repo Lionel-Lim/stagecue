@@ -14,6 +14,7 @@ let micEpoch = 0;
 let beatContext = null;
 let beatTimer = null;
 let beatStep = 0;
+let thresholdDirty = false;
 
 function notify(message) {
   ui['error-text'].textContent = message;
@@ -105,7 +106,11 @@ function render(next) {
   ui['provider-select'].value = state.provider;
   ui['target-select'].value = state.target;
   ui['speech-select'].value = state.speechMode || 'live';
-  ui['mode-description'].textContent = state.mode === 'auto' ? 'Clear cues act immediately. Uncertain cues still ask.' : 'You approve each cue before the stage changes.';
+  const autoThreshold = state.autoThreshold ?? 65;
+  ui['mode-description'].textContent = state.mode === 'auto' ? `At least ${autoThreshold}% confidence: act. Lower confidence: skip. No confirmations.` : 'You approve each cue before the stage changes.';
+  ui['auto-threshold-form'].hidden = state.mode !== 'auto';
+  if (!thresholdDirty) ui['auto-threshold'].value = autoThreshold;
+  ui['auto-threshold-status'].textContent = `Applied: ${autoThreshold}%. At or above: act. Below: skip. No confirmations.`;
   ui['engine-badge'].textContent = state.provider === 'openai' ? 'OPENAI DECISIONS' : 'REHEARSAL';
   ui['engine-explanation'].textContent = state.provider === 'openai'
     ? 'OpenAI Decisions uses your current cue, recent speech (up to 45 seconds), and stage state. Microphone audio is sent to OpenAI while listening. Stop clears conversation context.'
@@ -172,6 +177,8 @@ function updateControls() {
   const occupied = mutations > 0 || !!state?.busy;
   const armed = ready && !!state.armed;
   ui['debug-clear'].disabled = !ready || mutations > 0;
+  ui['auto-threshold'].disabled = !ready || occupied;
+  ui['threshold-apply'].disabled = !ready || occupied;
   ui['debug-browser-status'].textContent = mic?.ready ? 'Browser capture: sending microphone audio.' : micStarting ? 'Browser capture: waiting for permission / connection.' : 'Browser capture: off in this tab.';
   ui['arm-button'].disabled = !ready || occupied;
   ui['cue-submit'].disabled = !armed || occupied;
@@ -370,6 +377,15 @@ for (const button of document.querySelectorAll('[data-mode]')) button.addEventLi
 ui['provider-select'].addEventListener('change', (event) => { stopMicrophone(); api('/api/config', { provider: event.target.value }); });
 ui['target-select'].addEventListener('change', (event) => { stopMicrophone(); api('/api/config', { target: event.target.value }); });
 ui['speech-select'].addEventListener('change', (event) => { stopMicrophone(); api('/api/config', { speechMode: event.target.value }); });
+ui['auto-threshold'].addEventListener('input', () => { thresholdDirty = true; });
+ui['auto-threshold-form'].addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (!ui['auto-threshold'].reportValidity()) return;
+  stopMicrophone();
+  notify('');
+  const result = await api('/api/config', { autoThreshold: Number(ui['auto-threshold'].value) });
+  if (result) { thresholdDirty = false; ui['auto-threshold'].value = result.state.autoThreshold; }
+});
 ui['finish-phrase'].addEventListener('click', () => { if (mic?.ready && mic.ws.readyState === WebSocket.OPEN) mic.ws.send(JSON.stringify({ type: 'finish_phrase' })); });
 ui['cue-form'].addEventListener('submit', (event) => { event.preventDefault(); submitCue(ui['cue-input'].value); });
 for (const button of document.querySelectorAll('[data-cue]')) button.addEventListener('click', () => submitCue(button.dataset.cue));

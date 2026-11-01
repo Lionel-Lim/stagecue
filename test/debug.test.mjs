@@ -38,8 +38,8 @@ test('inspector separates the transcript, request context, model result, policy 
 test('debug explains the actual no-action and confidence branches', async () => {
   for (const [action, confidence, mode, status, reason] of [
     ['none', 0.99, 'auto', 'ignored', /selected none/],
-    ['demo', 0.39, 'auto', 'ignored', /below the 60%/],
-    ['demo', 0.7, 'auto', 'awaiting_confirmation', /below the 85%/],
+    ['demo', 0.39, 'auto', 'ignored', /below the 65%/],
+    ['demo', 0.7, 'auto', 'executed', /at or above the 65%/],
     ['demo', 0.99, 'ask', 'awaiting_confirmation', /Ask first/],
   ]) {
     const { engine } = await fixture(async () => decision(action, confidence));
@@ -48,7 +48,7 @@ test('debug explains the actual no-action and confidence branches', async () => 
     assert.equal(debug.turns[0].route.status, status);
     assert.match(debug.turns[0].route.reason, reason);
     assert.equal(debug.turns[0].decision.confidence, confidence);
-    assert.equal(debug.turns[0].output.status, 'not_sent');
+    assert.equal(debug.turns[0].output.status, status === 'executed' ? 'simulated' : 'not_sent');
     if (status === 'ignored') {
       assert.match(history[0].message, reason);
       assert.match(history[0].message, /Nothing changed/);
