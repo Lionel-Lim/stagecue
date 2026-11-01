@@ -13,7 +13,21 @@ const contextExamples = [
   ['Start it now', 'none', { recentUtterances: ['There is both a demonstration and a backing track ready.'] }],
   ['Show the demo and start the music', 'none', { recentUtterances: ['We have a demonstration and music.'] }],
 ];
-const examples = process.argv.includes('--context') ? contextExamples : [
+const reportedExamples = [
+  ['Okay, I want to go back to the slide.', 'slides', { recentUtterances: ["Okay, let's see the demo.", 'Right, then', 'Drum my beat.', 'Can you drop my beat?'], stage: { scene: 'demo', musicPlaying: false } }],
+  ['Can you drop my beat?', 'music_on', { recentUtterances: ["Okay, let's see the demo.", 'Right, then', 'Drum my beat.'], stage: { scene: 'demo', musicPlaying: false } }],
+  ['Drum my beat.', 'none', { recentUtterances: ["Okay, let's see the demo.", 'Right, then'], stage: { scene: 'demo', musicPlaying: false } }],
+  ['Right, then', 'none', { recentUtterances: ["Okay, let's see the demo."], stage: { scene: 'demo', musicPlaying: false } }],
+  ["Okay, let's see the demo.", 'demo', { stage: { scene: 'slides', musicPlaying: false } }],
+  ["I'd like to return to the presentation.", 'slides'],
+  ['Could you bring in my backing track?', 'music_on'],
+  ['Can you take the music down to silence?', 'music_off'],
+  ['I want to go back to the slide later.', 'none'],
+  ['Can you explain how dropping the beat works?', 'none'],
+  ["Don't drop my beat yet.", 'none'],
+  ['Can you show the demo and drop my beat?', 'none'],
+];
+const examples = process.argv.includes('--reported') ? reportedExamples : process.argv.includes('--context') ? contextExamples : [
   ["So let's see the demo", 'demo'],
   ['Let me show you the application now', 'demo'],
   ['Hey Codex, drop the beat', 'music_on'],

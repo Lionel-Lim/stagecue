@@ -177,7 +177,7 @@ export function createEngine({ obs, apiKey, decide = decideCue, now = Date.now }
           : !ACTIONS.includes(item.action) || !Number.isFinite(item.confidence) ? 'Invalid action or confidence; nothing sent.'
             : `Confidence ${(item.confidence * 100).toFixed(1)}% is below the 60% proposal threshold.`;
         diagnostics.update(traceId, { route: { status: 'ignored', reason } });
-        log('ignored', { ...item, message: 'No clear stage cue. Nothing changed.' });
+        log('ignored', { ...item, message: `${reason} Nothing changed.` });
       } else if (state.mode === 'ask' || item.confidence < 0.85) {
         diagnostics.update(traceId, { route: { status: 'awaiting_confirmation', reason: state.mode === 'ask' ? 'Ask first requires your confirmation (15 seconds).' : `Confidence ${(item.confidence * 100).toFixed(1)}% is below the 85% Auto threshold. Confirmation required (15 seconds).` } });
         state.pending = item;

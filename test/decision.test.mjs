@@ -24,6 +24,7 @@ test('sends the documented Decisions schema and returns only an allowlisted resu
     assert.equal(body.input[0].content[0].type, 'input_json');
     assert.deepEqual(body.input[0].content[0].data, {
       stage: { scene: 'unknown', music_playing: null },
+      earlier_utterances_for_reference_only: [],
     });
     assert.deepEqual(body.input.at(-1), { role: 'user', content: [{ type: 'input_text', text: "So let's see the demo" }] });
     assert.equal(body.questions.length, 1);
@@ -53,7 +54,8 @@ test('context is bounded evidence and cannot introduce arbitrary stage fields or
     ...options(async (_url, init) => {
       const input = JSON.parse(init.body).input;
       assert.equal(input.at(-1).content[0].text, 'start it now');
-      assert.deepEqual(input.slice(1, -1).map(message => message.content[0].text), ['second', 'third', 'fourth', 'x'.repeat(1000)]);
+      assert.equal(input.length, 2);
+      assert.deepEqual(input[0].content[0].data.earlier_utterances_for_reference_only, ['second', 'third', 'fourth', 'x'.repeat(1000)]);
       assert.deepEqual(input[0].content[0].data.stage, { scene: 'unknown', music_playing: null });
       assert.equal(JSON.stringify(input).includes('private-value'), false);
       assert.ok(input.every(message => message.role === 'user'));

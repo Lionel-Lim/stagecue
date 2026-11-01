@@ -44,11 +44,15 @@ test('debug explains the actual no-action and confidence branches', async () => 
   ]) {
     const { engine } = await fixture(async () => decision(action, confidence));
     await engine.configure({ mode });
-    const { debug } = await engine.cue('sample cue');
+    const { debug, history } = await engine.cue('sample cue');
     assert.equal(debug.turns[0].route.status, status);
     assert.match(debug.turns[0].route.reason, reason);
     assert.equal(debug.turns[0].decision.confidence, confidence);
     assert.equal(debug.turns[0].output.status, 'not_sent');
+    if (status === 'ignored') {
+      assert.match(history[0].message, reason);
+      assert.match(history[0].message, /Nothing changed/);
+    }
   }
 });
 

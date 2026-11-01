@@ -35,6 +35,15 @@ Use Ask first for room tests. Confidence thresholds remain heuristic; the live e
 - Speech partial/final rendering, RMS/gate information and the low-confidence explanation were checked with an isolated, explicitly labelled synthetic browser fixture. This did not capture microphone audio and does not establish real-room recognition quality.
 - Request logging includes only the body. Validated response logging strips unknown upstream fields; no configured keys/passwords or raw audio are included. Debug data is kept in memory only.
 
+## 1 November 2026 — reported natural-language cue fixes
+
+- The saved room-test traces showed two distinct failures: “Okay, I want to go back to the slide.” selected `none` at 90% confidence; “Can you drop my beat?” selected `music_on` at 50%, below the unchanged 60% proposal threshold. Replaying the original context reproduced both failures.
+- The prompt now distinguishes polite requests and present desires from negation, future plans, descriptions and combined requests. Previous utterances are explicitly labelled as background JSON, separate from the latest text message. There are no keyword overrides in OpenAI mode.
+- The final live evaluation passed all 35 labelled cases and proposal-policy checks: 12 reported/paraphrase cases, eight contextual cases, and 15 original direct/negative cases. The reported slides request selected `slides` at 100% confidence; the music request selected `music_on` at 94%. Both exceed the unchanged 85% Auto threshold. Other valid examples still required confirmation below 85%.
+- Completed decision latency: reported set median 334 ms / p95 752 ms; context set median 386 ms / p95 670 ms; direct set median 398 ms / p95 996 ms. This is one small prompt-development evaluation, not an independent accuracy benchmark or latency guarantee; speech and OBS latency are excluded.
+- Activity now shows confidence and the actual reason a cue was ignored, separating model `none` from low confidence. “Drum my beat” remains an unclear/unsupported transcript and is not silently rewritten to “drop the beat.”
+- All 105 automated tests passed, plus syntax and whitespace checks. A browser replay of the five reported utterances used real Decisions with rehearsal output: Demo executed, both unclear/filler phrases were ignored, music executed at 94%, and Slides executed at 99%. This verifies typed transcripts and simulated output, not a new microphone or OBS test.
+
 ## Still required on the demo machine
 
 - Microphone permissions, speech recognition in the room, actual end-of-speech latency, and false-positive testing.

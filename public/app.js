@@ -233,7 +233,7 @@ function renderHistory(history) {
     content.append(message);
     if (event.text) { const detail = document.createElement('div'); detail.className = 'history-detail'; detail.textContent = `“${event.text}”`; content.append(detail); }
     const meta = document.createElement('div'); meta.className = 'history-meta';
-    meta.textContent = [event.source, Number.isFinite(event.decisionMs) ? `${Math.round(event.decisionMs)} ms decision` : null].filter(Boolean).join(' · ');
+    meta.textContent = [event.source, event.source === 'openai' && Number.isFinite(event.confidence) ? `${(event.confidence * 100).toFixed(1)}% confidence` : null, Number.isFinite(event.decisionMs) ? `${Math.round(event.decisionMs)} ms decision` : null].filter(Boolean).join(' · ');
     item.append(time, icon, content, meta); ui['history-list'].append(item);
   }
 }
